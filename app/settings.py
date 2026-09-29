@@ -1,5 +1,7 @@
 """Runtime configuration, read from the environment (or .env in dev)."""
 
+from typing import Literal
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -21,6 +23,12 @@ class Settings(BaseSettings):
     # SoldComps, the same switch: with a key, sold lookups go to it instead of SerpApi.
     soldcomps_key: str = ""
 
+    # Which API identifies photos and judges listings: "anthropic" (Claude, the
+    # default) or "openai", any OpenAI-compatible endpoint at OPENAI_BASE_URL —
+    # OpenAI, OpenRouter, Ollama and the like (app/chat.py). The worker, when set,
+    # is tried first either way.
+    ai_provider: Literal["anthropic", "openai"] = "anthropic"
+
     anthropic_api_key: str = ""
     anthropic_model: str = "claude-sonnet-5"
 
@@ -29,6 +37,15 @@ class Settings(BaseSettings):
     # default, since every price fetch then makes one more Claude call.
     judge_listings: bool = False
     judge_model: str = "claude-haiku-4-5"
+
+    # AI_PROVIDER=openai. The key may be blank for a local server; a blank
+    # OPENAI_JUDGE_MODEL judges with OPENAI_MODEL. OPENAI_WEB_SEARCH lets the model
+    # search while identifying, through OpenRouter's search tool: OpenRouter only.
+    openai_base_url: str = "https://api.openai.com/v1"
+    openai_api_key: str = ""
+    openai_model: str = ""
+    openai_judge_model: str = ""
+    openai_web_search: bool = False
 
     # TMDB's v3 API key or v4 read access token: genre and director by title
     # (app/film.py). Unset, nothing is looked up and both are typed on the edit form.

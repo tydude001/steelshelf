@@ -50,6 +50,7 @@ case "$KEY" in
   SOLDCOMPS_KEY) check=check_soldcomps ;;
   SERPAPI_KEY) check=check_serpapi ;;
   ANTHROPIC_API_KEY) check=check_anthropic ;;
+  OPENAI_API_KEY) check=check_openai ;;
   TMDB_API_KEY) check=check_tmdb ;;
   WORKER_SECRET) check=check_worker ;;
   *) check="" ;;

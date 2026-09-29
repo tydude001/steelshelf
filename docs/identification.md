@@ -74,3 +74,33 @@ Decided 2026-09-24. **Claude does the vision.**
 `identify.py` puts the model behind an `Identifier` interface, like pricing,
 so a local model or a barcode decoder can replace or join it without touching
 the routes.
+
+## Other models
+
+Added 2026-09-29, for installs without an Anthropic key. `AI_PROVIDER=openai`
+sends identify and the listing judge to any endpoint that speaks OpenAI's chat
+completions — OpenAI, OpenRouter, Ollama, LM Studio, Groq, Gemini's
+compatibility API — through `chat.py`, plain httpx with no SDK. Claude stays
+the default; the worker, when set, is still tried first.
+
+The prompt, the schema and the parsing are the ones Claude gets: photos go as
+data URLs, the schema as `response_format`, and `parse` checks the answer the
+same way, UPC check digit and all. What differs:
+
+- **Search.** `OPENAI_WEB_SEARCH=true` adds OpenRouter's
+  `openrouter:web_search` server tool, capped at the same three searches and
+  with the model deciding whether to search, as with Claude. Other endpoints
+  reject that tool, so there it stays off and the prompt drops its search
+  rules: the model answers from the photos and what it knows, and a boutique
+  release code it cannot place goes in the doubts.
+- **Schema holding.** Not every model enforces a schema. The answer is read
+  from the first `{` to the last, so a code fence or a sentence around it
+  does no harm; a field outside the schema is ignored and one missing is
+  left blank for you to type.
+- **What Claude-only features did.** Anthropic's server-side refusal
+  fallback and a paused search turn's resume have no counterpart; a refusal,
+  a filtered answer or a cut-off one is an error on the form.
+- **Recognition.** The reason Claude does the vision (above) holds: a small
+  local model reads the title and the barcode but names few retailer
+  exclusives or boutique labels. A large hosted model through OpenRouter
+  comes closer. Nothing here was tuned on anything but Claude.

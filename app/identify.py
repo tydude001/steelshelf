@@ -26,6 +26,8 @@ import httpx
 import pillow_heif
 from PIL import Image, ImageOps, UnidentifiedImageError
 
+from app import chat
+
 log = logging.getLogger("steelshelf.identify")
 
 pillow_heif.register_heif_opener()  # iPhone gallery picks can arrive as HEIC
@@ -91,7 +93,7 @@ def upc_valid(code: str) -> bool:
     return (10 - total % 10) % 10 == check
 
 
-SYSTEM = f"""You identify steelbook editions of films from photos for a collector's \
+SYSTEM_INTRO = """You identify steelbook editions of films from photos for a collector's \
 catalogue. You get the front, and usually the spine and back, of one steelbook. An \
 "other" photo, when there is one, is a detail the owner thought mattered: a \
 limited-edition number, the bottom of a box set, a sticker. The item may be a box \
@@ -108,11 +110,16 @@ logo and a release code on the spine or box — Manta Lab's is a stylised M over
 exclusive number such as "E097" — and by a hand-numbered or printed "123/1000".
 
 Fill every field from what the photos show, plus what you know about steelbook \
-releases. You can search the web, at most {MAX_SEARCHES} times, to place a release \
+releases. """
+
+# The search half of the prompt, left out for a model that cannot search.
+SEARCH_RULES = f"""You can search the web, at most {MAX_SEARCHES} times, to place a release \
 the photos leave open: a label's release code, a retailer exclusive, a numbered run, \
 a catalogue code. Search for the specific edition (title, "steelbook", and the code \
 or retailer), not the film. Skip searching when the photos already settle it. What a \
-search confirms can fill a field; what it only suggests goes in doubts. Leave a field as an empty string rather than guess — an empty field is \
+search confirms can fill a field; what it only suggests goes in doubts. """
+
+FIELD_RULES = f"""Leave a field as an empty string rather than guess — an empty field is \
 typed in by hand, a wrong one is easy to miss.
 
 - title: the film's title as released, without format or edition words.
@@ -151,6 +158,9 @@ it: a narrower search that finds nothing costs a second one.
 - doubts: one short sentence per field you filled but are not sure of, naming \
 the field, and one for any printed code or marking you read but could not place. \
 Empty if you are sure of everything you filled."""
+
+SYSTEM = SYSTEM_INTRO + SEARCH_RULES + FIELD_RULES
+SYSTEM_NO_SEARCH = SYSTEM_INTRO + FIELD_RULES
 
 # Told to the model when the owner ticks "box set or slip" on the form.
 BOXED_NOTE = (
@@ -259,6 +269,35 @@ class ClaudeVision:
             raise IdentifyError(f"Claude API error: HTTP {exc.status_code} {exc.message}") from exc
         except anthropic.APIConnectionError as exc:
             raise IdentifyError(f"could not reach the Claude API: {exc}") from exc
+
+
+class OpenAIVision:
+    """The same question through an OpenAI-compatible endpoint (app/chat.py).
+
+    Same photos, schema and prompt as ClaudeVision; with `search` (OpenRouter
+    only) the model may run up to MAX_SEARCHES searches, and without it the
+    prompt says nothing of searching.
+    """
+
+    name = "openai"
+
+    def __init__(self, client: chat.ChatClient, model: str, search: bool = False):
+        self.client, self.model, self.search = client, model, search
+
+    def identify(self, photos: list[tuple[str, bytes]], boxed: bool = False) -> Identification:
+        content: list[dict] = []
+        for kind, data in photos:
+            content += [chat.text_part(f"{kind}:"), chat.image_part(prepare_image(data))]
+        content.append(chat.text_part(BOXED_NOTE if boxed else "Identify this steelbook."))
+        try:
+            answer = self.client.complete(
+                self.model, SYSTEM if self.search else SYSTEM_NO_SEARCH, content, SCHEMA,
+                "steelbook", tools=[chat.web_search(MAX_SEARCHES)] if self.search else None,
+            )
+        except chat.ChatError as exc:
+            raise IdentifyError(str(exc)) from exc
+        log.info("identified %r (%d searches)", answer.raw.get("title"), answer.searches)
+        return replace(parse(answer.raw, boxed), via=f"{self.model} at {self.client.host}")
 
 
 class ClaudeCodeWorker:

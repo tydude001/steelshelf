@@ -40,13 +40,18 @@ decisions are in [identification.md](identification.md) and
     `SoldComps`, all off unless enabled; `narrow_edition`, the judge then the
     word tiers; and `parse_prices` / `record_sold`, for sold prices typed in.
   - `judge.py` — which listings are the item's edition: `ClaudeJudge`,
-    `WorkerJudge`, `FallbackJudge`, and `ListingJudge`, which the sources
-    hold.
+    `OpenAIJudge`, `WorkerJudge`, `FallbackJudge`, and `ListingJudge`, which
+    the sources hold.
   - `identify.py` — the `Identifier` interface; `ClaudeVision`: photos
     downscaled to 2576px, one Messages API call with a JSON-schema output, web
     search capped at 3, a paused search turn resumed, server-side refusal
-    fallbacks on; `ClaudeCodeWorker`, the worker's client; `Fallback`, the
-    worker then the API.
+    fallbacks on; `OpenAIVision`, the same through `chat.py` when
+    `AI_PROVIDER=openai`, with the search rules cut from the prompt unless
+    OpenRouter's search is on; `ClaudeCodeWorker`, the worker's client;
+    `Fallback`, the worker then the API.
+  - `chat.py` — `ChatClient`, one POST to an OpenAI-compatible
+    `/chat/completions` (OpenAI, OpenRouter, Ollama…) with a JSON schema,
+    the answer read leniently; the other route beside the Anthropic SDK.
   - `templates/` — the library is a CSS bookcase: one wrapping row of
     same-height steelbook spines per shelf run, each as wide as its `--r`, a
     repeating background painting a plank under each wrapped line. A spine is

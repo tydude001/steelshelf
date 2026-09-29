@@ -75,11 +75,13 @@ from starlette.concurrency import run_in_threadpool
 
 from app import barcode, db, film, judge, photos, present, reprice, shelf, spine, stats
 from app.auth import require_admin
+from app.chat import ChatClient
 from app.identify import (
     BOXED_WORDS,
     FIELDS,
     ClaudeCodeWorker,
     ClaudeVision,
+    OpenAIVision,
     Fallback,
     Identifier,
     IdentifyError,
@@ -117,6 +119,12 @@ TEMPLATES.env.filters["spine_face"] = shelf.spine_face
 TEMPLATES.env.globals["tmdb_on"] = lambda: bool(settings.tmdb_api_key)
 TEMPLATES.env.globals["sold_sources"] = SOLD_SOURCES
 TEMPLATES.env.globals["quartiles_from"] = QUARTILES_FROM
+# The identify buttons name who reads the photos, and whether it can search.
+TEMPLATES.env.globals["ai_name"] = lambda: (
+    "Claude" if settings.ai_provider == "anthropic" else "the model")
+TEMPLATES.env.globals["ai_searches"] = lambda: (
+    settings.ai_provider == "anthropic" or bool(settings.worker_url)
+    or settings.openai_web_search)
 # A short tag for an image URL that changes when the image does (a new crop).
 TEMPLATES.env.filters["ver"] = lambda text: format(zlib.crc32((text or "").encode()), "x")
 STATIC = Path(__file__).parent / "static"
@@ -271,13 +279,22 @@ def front_photo_bytes(item_id: int) -> bytes | None:
     return path.read_bytes() if path else None
 
 
+def chat_client(timeout: float) -> ChatClient:
+    """The OpenAI-compatible endpoint AI_PROVIDER=openai sends to."""
+    return ChatClient(settings.openai_base_url, settings.openai_api_key, timeout)
+
+
 def get_judge() -> judge.ListingJudge | None:
     """The listing judge when JUDGE_LISTINGS is on: the worker, then the API (either
     alone when only one is set up); None when off or neither is."""
     if not settings.judge_listings:
         return None
-    api = (judge.ClaudeJudge(settings.anthropic_api_key, settings.judge_model)
-           if settings.anthropic_api_key else None)
+    if settings.ai_provider == "openai":
+        model = settings.openai_judge_model or settings.openai_model
+        api = judge.OpenAIJudge(chat_client(120.0), model) if model else None
+    else:
+        api = (judge.ClaudeJudge(settings.anthropic_api_key, settings.judge_model)
+               if settings.anthropic_api_key else None)
     on_worker = (judge.WorkerJudge(settings.worker_url, settings.worker_secret)
                  if settings.worker_url and settings.worker_secret else None)
     chosen = (judge.FallbackJudge(on_worker, api) if on_worker and api
@@ -364,10 +381,16 @@ _identifier: Identifier | None = None
 
 
 def get_identifier() -> Identifier:
-    """Claude Code on the worker when WORKER_URL is set, the API when it fails or is unset."""
+    """Claude Code on the worker when WORKER_URL is set, the API when it fails or is unset.
+
+    The API is Claude's, or with AI_PROVIDER=openai the OpenAI-compatible endpoint's."""
     global _identifier
     if _identifier is None:
-        api = ClaudeVision(settings.anthropic_api_key, settings.anthropic_model)
+        if settings.ai_provider == "openai":
+            api = OpenAIVision(chat_client(300.0), settings.openai_model,
+                               search=settings.openai_web_search)
+        else:
+            api = ClaudeVision(settings.anthropic_api_key, settings.anthropic_model)
         _identifier = api
         if settings.worker_url:
             worker = ClaudeCodeWorker(settings.worker_url, settings.worker_secret)

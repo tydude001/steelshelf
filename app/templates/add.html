@@ -43,7 +43,7 @@
   {% if not held %}
   <button id="identify" class="btn quiet wide" type="submit" formaction="/add/identify"
           formnovalidate>Identify from photos</button>
-  <p id="identify-status" class="muted" role="status">Identify sends the photos to Claude
+  <p id="identify-status" class="muted" role="status">Identify sends the photos to {{ ai_name() }}
   and fills in the details below for you to check; it can take up to a minute.</p>
   {% endif %}
 {% include "_details.html" %}
@@ -51,15 +51,15 @@
 </form>
 {% if not held %}
 <script>
-  // A plain form POST that blocks on Claude: say so, and stop a second submit.
+  // A plain form POST that blocks on the model: say so, and stop a second submit.
   document.querySelector("form").addEventListener("submit", (e) => {
     const form = e.currentTarget;
     if (form.dataset.busy) { e.preventDefault(); return; }
     form.dataset.busy = "1";
     if (e.submitter && e.submitter.id === "identify") {
-      e.submitter.textContent = "Asking Claude…";
+      e.submitter.textContent = "Asking {{ ai_name() }}…";
       const status = document.getElementById("identify-status");
-      status.textContent = "Photos sent — Claude is reading them. This can take up to a " +
+      status.textContent = "Photos sent — {{ ai_name() }} is reading them. This can take up to a " +
         "minute; the details will fill in when it's done.";
       status.classList.add("working");
     }

@@ -28,6 +28,22 @@ check_anthropic() {
   return 1
 }
 
+check_openai() {
+  # OpenRouter's model list is public, so it is checked at /key, which is not.
+  local base="${val[OPENAI_BASE_URL]:-https://api.openai.com/v1}" path=models code
+  base="${base%/}"
+  [[ "$base" == *openrouter.ai* ]] && path=key
+  code="$(printf 'Authorization: Bearer %s\n' "${val[OPENAI_API_KEY]}" |
+    curl -s -o /dev/null -w '%{http_code}' -m 15 -H @- "$base/$path")"
+  case "$code" in
+    200) echo "  $base: key works ✓"; return 0 ;;
+    401) echo "  $base: key rejected (HTTP 401)" ;;
+    000) echo "  $base: unreachable — check OPENAI_BASE_URL" ;;
+    *)   echo "  $base: HTTP $code" ;;
+  esac
+  return 1
+}
+
 check_serpapi() {
   # The Account API is free: it spends none of the month's searches.
   local out left

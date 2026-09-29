@@ -32,6 +32,8 @@ import anthropic
 import httpx
 from PIL import Image, ImageOps, UnidentifiedImageError
 
+from app import chat
+
 log = logging.getLogger("steelshelf.judge")
 
 VERDICTS = ("same", "other", "not_one")
@@ -191,6 +193,28 @@ class ClaudeJudge:
             raise JudgeError("Claude's verdicts were not valid JSON") from exc
         log.info("judged %d listings (request %s)", len(case.listings), response._request_id)
         return verdicts_from(raw, len(case.listings))
+
+
+class OpenAIJudge:
+    """The same question through an OpenAI-compatible endpoint (app/chat.py)."""
+
+    name = "openai"
+
+    def __init__(self, client: chat.ChatClient, model: str):
+        self.client, self.model = client, model
+
+    def judge(self, case: Case) -> dict[int, str]:
+        content: list[dict] = []
+        if case.front:
+            content += [chat.text_part("The owner's case, front:"), chat.image_part(case.front)]
+        for n, pic in sorted(case.pictures.items()):
+            content += [chat.text_part(f"Listing {n}'s picture:"), chat.image_part(pic)]
+        content.append(chat.text_part(case.text()))
+        try:
+            answer = self.client.complete(self.model, SYSTEM, content, SCHEMA, "verdicts")
+        except chat.ChatError as exc:
+            raise JudgeError(str(exc)) from exc
+        return verdicts_from(answer.raw, len(case.listings))
 
 
 class WorkerJudge:

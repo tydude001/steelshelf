@@ -98,6 +98,7 @@ Only the admin password is required. Each other key switches on one thing:
 | `ADMIN_USER` / `ADMIN_PASSWORD` | yes | every write, and every call that spends a key | — |
 | Anthropic (`ANTHROPIC_API_KEY`) | no | identify from photos; the listing judge | cents per item |
 | Claude Code worker (`WORKER_URL`, `WORKER_SECRET`) | no | the same, on your own Claude subscription | your plan |
+| Another model (`AI_PROVIDER=openai`, `OPENAI_*`) | no | the same, through OpenAI, OpenRouter, Ollama or any OpenAI-compatible API, in Claude's place | the provider's |
 | eBay (`EBAY_CLIENT_ID`, `EBAY_CLIENT_SECRET`) | no | current asks | free |
 | TMDB (`TMDB_API_KEY`) | no | genre and director, and the sorts by them | free |
 | SerpApi (`SERPAPI_KEY`) | no, off by default | sold lookups; asks when there is no eBay keyset | 250 searches/month free |
@@ -143,6 +144,15 @@ manager. Never in git.
   Run on that machine, the script reads it from there. Setup is in
   [docs/deploy.md](docs/deploy.md); why it exists is in
   [docs/identification.md](docs/identification.md#vision-model--the-decision).
+- **Another model** (optional) — Claude is the default and the one the
+  prompts are tuned on; `AI_PROVIDER=openai` swaps the Anthropic key for any
+  OpenAI-compatible endpoint: `OPENAI_BASE_URL` (OpenAI's by default;
+  `https://openrouter.ai/api/v1`, or `http://<host>:11434/v1` for Ollama),
+  `OPENAI_API_KEY` (blank for a local server), and `OPENAI_MODEL`, which must
+  take images. `OPENAI_WEB_SEARCH=true` lets it search while identifying,
+  on OpenRouter only. `scripts/set-key.sh OPENAI_API_KEY` checks the key
+  against `OPENAI_BASE_URL`; the rest are plain lines in `.env`. What changes
+  is in [docs/identification.md](docs/identification.md#other-models).
 - **SerpApi** (optional) — `SERPAPI_KEY`, and `SOLD_LOOKUP_ENABLED=true` to
   show the sold button and, with no eBay keyset, to fetch asks through it.
   Free account at <https://serpapi.com>, key under **Api Key**. The script
@@ -170,7 +180,8 @@ manager. Never in git.
 ## Privacy
 
 Your photos and your database stay on your machine. Photos leave it only when
-you press **Identify**, to Anthropic's API or to your own Claude Code worker —
+you press **Identify**, to Anthropic's API, the endpoint `AI_PROVIDER=openai`
+names, or your own Claude Code worker —
 and, with `JUDGE_LISTINGS` on, the front photo and the item's fields go the same
 way with each price fetch, for the listing judge.
 Titles go to TMDB for genre and director; titles and UPCs go to eBay (and
@@ -189,15 +200,16 @@ else, and there is no telemetry.
   developers, and a median ask usually runs above what sells; the pages say
   which a price is. Sold prices come from typing them in or from a scraping
   service you switch on yourself.
-- **Identifying needs Claude.** Without an API key or a worker, you type each
-  case's details in.
+- **Identifying needs a model.** Without an Anthropic key, another provider or
+  a worker, you type each case's details in. Claude is what it is tuned on;
+  another model may name fewer boutique editions.
 - **Built for steelbooks.** Searches add "steelbook", and the shelf assumes a
   case's proportions.
 
 ## Documentation
 
 - [docs/identification.md](docs/identification.md) — capture, the barcode and
-  vision steps, drafts, and why Claude does the vision.
+  vision steps, drafts, why Claude does the vision, and other models.
 - [docs/pricing.md](docs/pricing.md) — what an item is worth, matching
   listings to the edition, the monthly re-price, and the pricing-source
   decision.

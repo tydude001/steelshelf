@@ -24,20 +24,20 @@
 {% else %}
 <form id="reidentify" method="post" action="/items/{{ item.id }}/identify">
   <button class="btn quiet wide" type="submit">Identify again from photos</button>
-  <p id="identify-status" class="muted" role="status">Sends the saved photos to Claude,
-  which can search the web, and fills in the form below for you to check. Takes up to a
+  <p id="identify-status" class="muted" role="status">Sends the saved photos to {{ ai_name() }}{% if ai_searches() %},
+  which can search the web,{% endif %} and fills in the form below for you to check. Takes up to a
   minute or two.</p>
 </form>
 <script>
-  // A plain form POST that blocks on Claude: say so, and stop a second submit.
+  // A plain form POST that blocks on the model: say so, and stop a second submit.
   document.getElementById("reidentify").addEventListener("submit", (e) => {
     const form = e.currentTarget;
     if (form.dataset.busy) { e.preventDefault(); return; }
     form.dataset.busy = "1";
     const button = form.querySelector("button");
-    button.textContent = "Asking Claude…";
+    button.textContent = "Asking {{ ai_name() }}…";
     const status = document.getElementById("identify-status");
-    status.textContent = "Photos sent — Claude is reading them and may search the web. " +
+    status.textContent = "Photos sent — {{ ai_name() }} is reading them{% if ai_searches() %} and may search the web{% endif %}. " +
       "The form will fill in when it's done.";
     status.classList.add("working");
     setTimeout(() => button.disabled = true);
