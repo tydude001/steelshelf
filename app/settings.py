@@ -18,6 +18,8 @@ class Settings(BaseSettings):
     # eBay keyset, it also sends "Fetch eBay asks" through SerpApi.
     sold_lookup_enabled: bool = False
     serpapi_key: str = ""
+    # SoldComps, the same switch: with a key, sold lookups go to it instead of SerpApi.
+    soldcomps_key: str = ""
 
     anthropic_api_key: str = ""
     anthropic_model: str = "claude-sonnet-5"

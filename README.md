@@ -174,6 +174,11 @@ instead. Keep a copy of every secret in a password manager. Never in git.
   (§ Pricing source says why it is off by default). Free account at <https://serpapi.com>, key under
   **Api Key**. The script checks it against the Account API, which spends
   none of the month's 250 searches.
+- **SoldComps** (optional) — `SOLDCOMPS_KEY`: with it, the sold button asks
+  SoldComps instead of SerpApi (asks never do), still only while
+  `SOLD_LOOKUP_ENABLED` is on. Free account at <https://sold-comps.com>, 100
+  requests a month, one per lookup. The script checks the key with a search
+  that has no keyword, which the API refuses before it counts.
 - **TMDB** (optional) — `TMDB_API_KEY`, the genre and director behind the
   "By genre" / "By director" sorts: a free key from
   <https://www.themoviedb.org/settings/api>. Either
@@ -235,7 +240,7 @@ alternatives considered, in the order they would be tried:
 
 | Option | Why not (yet) |
 |--------|---------------|
-| Paid sold-comps API (several vendors resell scraped sold data) | Built 2026-09-25 as `serpapi_sold`, disabled by default — below |
+| Paid sold-comps API (several vendors resell scraped sold data) | Built 2026-09-25 as `serpapi_sold` and 2026-09-29 as `soldcomps_sold`, disabled by default — below |
 | Apply for Marketplace Insights | Cheap to try; expect no answer |
 | Scrape eBay's sold-and-completed search page | Against eBay's terms and brittle; if ever added it ships disabled |
 
@@ -265,6 +270,14 @@ item is priced from used listings when three or more are in those results
 (`serpapi_active_used`); otherwise the page says it is the price of sealed
 copies. A used-only search is not run: for one popular title it found three.
 
+**Sold lookups through SoldComps** (`source = 'soldcomps_sold'`), added
+2026-09-29 when SerpApi's sold search returned 503 for every query while its
+unfiltered searches worked. It is the same kind of scrape, so it sits behind the
+same switch, and runs the same title search, filters and edition narrowing.
+With `SOLDCOMPS_KEY` set it takes the sold button over from SerpApi; asks and
+the monthly re-price stay where they were. It prices on `soldPrice`, the item
+alone, like every other source; `totalPrice` adds shipping.
+
 ## Layout
 
 - `app/` — FastAPI app. `main.py` (routes, lifespan — the route table is its
@@ -291,8 +304,9 @@ copies. A used-only search is not run: for one popular title it found three.
   `EbayKeyword`, which the app uses — UPC when there is one, else a title
   search filtered to steelbooks of that title and format, saved as
   `source = 'ebay_keyword'`; `value_item`, which appends a `valuations`
-  row; `SerpApiSold` / `SerpApiActive`, sold listings and asks by title, off
-  unless enabled; and
+  row; `SerpApiSold` / `SerpApiActive`, sold listings and asks by title, and
+  `SoldComps`, sold listings by title from another vendor, all off unless
+  enabled; and
   `parse_prices` / `record_sold`, for sold prices typed in), `identify.py` (the `Identifier`
   interface; `ClaudeVision`: photos downscaled to 2576px, one Messages API
   call with a JSON-schema output, web search capped at 3, a paused search

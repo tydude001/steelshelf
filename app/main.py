@@ -92,6 +92,7 @@ from app.pricing import (
     PricingSource,
     SerpApiActive,
     SerpApiSold,
+    SoldComps,
     confidence,
     is_opened,
     parse_prices,
@@ -110,6 +111,7 @@ TEMPLATES.env.filters["local_date"] = present.local_date
 TEMPLATES.env.filters["spine_face"] = shelf.spine_face
 # The genre and director fields say TMDB fills them only when it will.
 TEMPLATES.env.globals["tmdb_on"] = lambda: bool(settings.tmdb_api_key)
+TEMPLATES.env.globals["sold_sources"] = SOLD_SOURCES
 # A short tag for an image URL that changes when the image does (a new crop).
 TEMPLATES.env.filters["ver"] = lambda text: format(zlib.crc32((text or "").encode()), "x")
 STATIC = Path(__file__).parent / "static"
@@ -298,13 +300,17 @@ def reprice_status(conn, scheduler) -> dict:
     }
 
 
-_sold_pricing: SerpApiSold | None = None
+_sold_pricing: PricingSource | None = None
 
 
 def get_sold_pricing() -> PricingSource:
+    """SoldComps when it has a key, SerpApi's sold search otherwise."""
     global _sold_pricing
     if _sold_pricing is None:
-        _sold_pricing = SerpApiSold(settings.serpapi_key)
+        if settings.soldcomps_key:
+            _sold_pricing = SoldComps(settings.soldcomps_key)
+        else:
+            _sold_pricing = SerpApiSold(settings.serpapi_key)
     return _sold_pricing
 
 

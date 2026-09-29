@@ -10,6 +10,7 @@ from app.pricing import (
     PricingError,
     SerpApiActive,
     SerpApiSold,
+    SoldComps,
     title_match,
     is_opened,
     keyword_match,
@@ -482,3 +483,72 @@ def test_sold_never_narrows_by_condition(conn):
                listed(80, "Pre-Owned")]
     q = serp({"organic_results": results}).quote(opened_row(conn, "opened"))
     assert (q.source, q.n_listings) == ("serpapi_sold", 4)
+
+
+# --- SoldComps sold lookups ---------------------------------------------------
+
+
+def comp(title, price="30.00", currency="USD", item_id="123456789012", **extra):
+    return {"itemId": item_id, "title": title, "soldPrice": price, "soldCurrency": currency,
+            "totalPrice": "99.00", "condition": "Brand New",
+            "url": f"https://www.ebay.com/itm/{item_id}", **extra}
+
+
+def soldcomps(body, status=200, seen=None):
+    def handler(request):
+        if seen is not None:
+            seen.append(request)
+        return httpx.Response(status, json=body)
+
+    return SoldComps("sc_key", http=httpx.Client(transport=httpx.MockTransport(handler)))
+
+
+def test_soldcomps_searches_by_title_and_keeps_matching_dollar_prices(conn):
+    seen = []
+    source = soldcomps({"items": [
+        comp("Alien 4K UHD Steelbook Best Buy", "40.00", item_id="1"),
+        comp("Alien 4K Steelbook sealed", "60.00", item_id="2"),
+        comp("Alien Blu-ray Steelbook", "15.00", item_id="3"),        # wrong format
+        comp("Alien 4K UHD", "20.00", item_id="4"),                   # not a steelbook
+        comp("Alien 4K Steelbook", "45.00", "GBP", item_id="5"),      # not dollars
+        comp("Alien 4K Steelbook", None, item_id="6"),                # no price
+    ]}, seen=seen)
+    q = source.quote(item_row(conn, fmt="4K UHD"))
+    assert (q.source, q.low, q.median, q.high, q.n_listings) == (
+        "soldcomps_sold", 40.0, 50.0, 60.0, 2)
+    assert [ls.key for ls in q.listings] == ["1", "2"]  # soldPrice, never totalPrice
+    request = seen[0]
+    assert request.headers["authorization"] == "Bearer sc_key"
+    assert request.url.params["keyword"] == "Alien steelbook 4K"
+    assert request.url.params["ebaySite"] == "ebay.com"
+
+
+def test_soldcomps_no_items_is_a_quote_of_nothing(conn):
+    q = soldcomps({"items": [], "totalItems": 0, "hasNextPage": False}).quote(item_row(conn))
+    assert q.n_listings == 0 and q.median is None
+
+
+@pytest.mark.parametrize("body, status, said", [
+    ({"error": "Invalid API key."}, 401, "Invalid API key"),  # what the live API sent
+    ({"code": "quota_exceeded", "message": "Monthly quota exhausted"}, 429, "quota"),
+    ({"code": "upstream_blocked"}, 503, "upstream_blocked"),
+])
+def test_soldcomps_errors_raise_with_what_it_said(conn, body, status, said):
+    with pytest.raises(PricingError, match=f"SoldComps search failed: HTTP {status}.*{said}"):
+        soldcomps(body, status).quote(item_row(conn))
+
+
+def test_soldcomps_without_a_key_raises_before_calling(conn):
+    with pytest.raises(PricingError, match="SOLDCOMPS_KEY"):
+        SoldComps("").quote(item_row(conn))
+
+
+def test_soldcomps_narrows_to_the_items_retailer(conn):
+    source = soldcomps({"items": [
+        comp("Alien 4K Steelbook Best Buy", "40.00", item_id="1"),
+        comp("Alien 4K Steelbook BestBuy exclusive", "42.00", item_id="2"),
+        comp("Alien 4K UHD Steelbook Best Buy sealed", "44.00", item_id="3"),
+        comp("Alien 4K Steelbook Zavvi UK", "120.00", item_id="4"),
+    ]})
+    q = source.quote(edition_row(conn, retailer="Best Buy", region="US"))
+    assert (q.low, q.median, q.high, q.n_listings) == (40.0, 42.0, 44.0, 3)

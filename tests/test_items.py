@@ -372,3 +372,33 @@ def test_opened_item_says_whose_copies_priced_it(admin, stub_pricing):
         admin.post(f"{loc}/value", auth=AUTH)
     assert "Price of sealed copies" in admin.get(opened).text
     assert "Price of sealed copies" not in admin.get(sealed).text
+
+
+@pytest.mark.parametrize("soldcomps_key, name", [
+    ("sc_key", "soldcomps_sold"),   # SoldComps wins when it has a key
+    ("", "serpapi_sold"),
+])
+def test_sold_lookups_go_to_soldcomps_when_it_has_a_key(monkeypatch, soldcomps_key, name):
+    from app import main
+    monkeypatch.setattr(main.settings, "soldcomps_key", soldcomps_key)
+    monkeypatch.setattr(main, "_sold_pricing", None)
+    assert main.get_sold_pricing().name == name
+
+
+class StubSoldComps:
+    name = "soldcomps_sold"
+
+    def quote(self, item):
+        return Quote("soldcomps_sold", 30.0, 42.0, 55.0, 5, "USD")
+
+
+def test_a_soldcomps_price_is_labelled_sold(admin, monkeypatch):
+    app.dependency_overrides[get_sold_pricing] = lambda: StubSoldComps()
+    monkeypatch.setattr(settings_module.settings, "sold_lookup_enabled", True)
+    try:
+        loc = post_item(admin).headers["location"]
+        admin.post(f"{loc}/sold/lookup", auth=AUTH)
+        assert "Sold (median)" in admin.get(loc).text
+        assert "sold ~42.00 USD" in admin.get("/").text
+    finally:
+        app.dependency_overrides.pop(get_sold_pricing, None)

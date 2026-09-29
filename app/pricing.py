@@ -13,9 +13,10 @@ which `_append` stores beside the valuation so the item page can show them. A
 listing the owner marks "not this one" is remembered by its eBay id
 (`db.excluded_keys`) and left out of the median on every later fetch.
 
-`SerpApiSold` is the one sold source: eBay's sold search, as scraped by
-SerpApi's eBay engine. It is a scraper at one remove, so per the repo rule it
-ships disabled (`SOLD_LOOKUP_ENABLED`). `SerpApiActive` is the same engine's
+`SerpApiSold` and `SoldComps` are the sold sources: eBay's sold search, as
+scraped by SerpApi's eBay engine or by SoldComps. Each is a scraper at one
+remove, so per the repo rule both ship disabled (`SOLD_LOOKUP_ENABLED`);
+SoldComps is used when it has a key. `SerpApiActive` is the same engine's
 current asks, used for asks only when there is no eBay keyset and that same
 switch is on. `record_sold` is the one row not fetched: sold prices looked up on
 eBay's site by hand and typed in, saved as `source = 'manual_sold'`.
@@ -360,6 +361,14 @@ def listing_used(result: dict) -> bool:
     return str(result.get("condition", "")).lower().startswith(("pre-owned", "used"))
 
 
+def search_terms(item: sqlite3.Row) -> str:
+    """The keyword search every title-searched source runs: title, "steelbook", + "4K"."""
+    q = f"{item['title']} steelbook"
+    if "4k" in (item["format"] or "").lower():
+        q += " 4K"
+    return q
+
+
 _EBAY_ITEM = re.compile(r"/itm/(?:[^/]+/)?(\d{9,})")
 
 
@@ -390,9 +399,7 @@ class SerpApiEbay:
     def quote(self, item: sqlite3.Row) -> Quote:
         if not self.api_key:
             raise PricingError("SerpApi key missing: set SERPAPI_KEY")
-        q = f"{item['title']} steelbook"
-        if "4k" in (item["format"] or "").lower():
-            q += " 4K"
+        q = search_terms(item)
         r = self.http.get(self.API, params={
             "engine": "ebay", "ebay_domain": "ebay.com", "_nkw": q,
             "_ipg": 100, "api_key": self.api_key, **self.PARAMS,
@@ -454,6 +461,67 @@ class SerpApiActive(SerpApiEbay):
 
     def keep(self, result: dict) -> bool:
         return result.get("buying_format") != "auction" and "bids" not in result
+
+
+class SoldComps:
+    """Sold eBay listings through SoldComps (sold-comps.com), searched by title.
+
+    The same search and filtering as `SerpApiSold` — `keyword_match`, then
+    `prefer_edition_sales` — from another vendor's scrape of eBay's sold search,
+    so it sits behind the same switch. Item price only (`soldPrice`, not
+    `totalPrice`, which adds shipping), US dollars only. One lookup is one
+    request of the month's quota whatever `count` is, so it asks for the most.
+    """
+
+    name = "soldcomps_sold"
+    API = "https://api.sold-comps.com/v1/scrape"
+
+    def __init__(self, api_key: str, http: httpx.Client | None = None):
+        self.api_key = api_key
+        # It scrapes eBay live: a median of 4-6s, and slower when eBay is.
+        self.http = http or httpx.Client(timeout=60)
+
+    def quote(self, item: sqlite3.Row) -> Quote:
+        if not self.api_key:
+            raise PricingError("SoldComps key missing: set SOLDCOMPS_KEY")
+        q = search_terms(item)
+        r = self.http.get(
+            self.API,
+            params={"keyword": q, "ebaySite": "ebay.com", "count": 200},
+            headers={"Authorization": f"Bearer {self.api_key}"},
+        )
+        body = r.json() if r.headers.get("content-type", "").startswith("application/json") else {}
+        if r.status_code != 200:
+            # The live API answers {"error": ...}; its docs describe {code, message}.
+            error = (body.get("error") or body.get("message") or body.get("code")
+                     or r.text[:200])
+            raise PricingError(f"SoldComps search failed: HTTP {r.status_code} {error}")
+        results = body.get("items") or []
+        kept = [s for s in results if keyword_match(s.get("title", ""), item)]
+        sales = [self._listing(s) for s in kept if s.get("soldCurrency") == "USD"
+                 and self._price(s) is not None]
+        chosen, edition = prefer_edition_sales(sales, item)
+        log.info("%s %r: kept %d of %d, %d priced, %d used (%s)",
+                 self.name, q, len(kept), len(results), len(sales), len(chosen), edition)
+        return from_listings(self.name, chosen, "USD")
+
+    @staticmethod
+    def _price(result: dict) -> float | None:
+        try:
+            price = float(result.get("soldPrice"))
+        except (TypeError, ValueError):
+            return None
+        return price if price > 0 else None
+
+    @classmethod
+    def _listing(cls, result: dict) -> Listing:
+        url = str(result.get("url", ""))
+        return Listing(
+            result.get("title", ""), cls._price(result),
+            key=str(result.get("itemId") or url or result.get("title", "")),
+            condition=str(result.get("condition") or ""),
+            url=url,
+        )
 
 
 def value_item(conn: sqlite3.Connection, item_id: int, source: PricingSource) -> int:
@@ -529,7 +597,7 @@ def toggle_listing(conn: sqlite3.Connection, item_id: int, listing_id: int) -> i
 
 
 MANUAL_SOLD = "manual_sold"
-SOLD_SOURCES = (MANUAL_SOLD, "serpapi_sold")  # the sources that are sold prices, not asks
+SOLD_SOURCES = (MANUAL_SOLD, "serpapi_sold", "soldcomps_sold")  # the sources that are sold prices, not asks
 _PRICE = re.compile(r"\$?(\d+(?:\.\d{1,2})?)")
 
 

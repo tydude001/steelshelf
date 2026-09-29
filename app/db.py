@@ -20,7 +20,8 @@ and `reprice_items`, what became of each item it planned — `app/reprice.py`):
 - valuations  — one row per pricing fetch, never overwritten, so the shelf's
                 worth can be charted over time. `source` names the pricing
                 module: `ebay_active` (by UPC) or `ebay_keyword` (by title, looser),
-                `serpapi_sold` (sold listings via SerpApi), or `manual_sold` — sold
+                `serpapi_sold` / `soldcomps_sold` (sold listings via SerpApi or
+                SoldComps), or `manual_sold` — sold
                 prices typed in by hand. `via` is 'monthly' for a row the monthly
                 re-price wrote, NULL for one fetched or typed in by hand.
 - listings    — the eBay listings a valuation was computed from, one row each, so
@@ -69,7 +70,7 @@ CREATE TABLE IF NOT EXISTS valuations (
     id          INTEGER PRIMARY KEY,
     item_id     INTEGER NOT NULL REFERENCES items(id) ON DELETE CASCADE,
     source      TEXT NOT NULL,      -- ebay_active|ebay_keyword|serpapi_active[_used]|
-                                    -- serpapi_sold|manual_sold
+                                    -- serpapi_sold|soldcomps_sold|manual_sold
     low         REAL,
     median      REAL,
     high        REAL,

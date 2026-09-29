@@ -123,7 +123,7 @@
           <strong>{{ it.title }}</strong><br>
           <span class="muted small">{{ it.retailer or it.format or "" }}</span>
           {% if it.latest_median is not none %}
-          <br><span class="small">{{ "sold" if it.latest_source in ("manual_sold", "serpapi_sold") else "ask" }} ~{{ "%.2f" | format(it.latest_median) }} {{ it.latest_currency }}{% if it.latest_source == "manual_sold" %} · by hand{% endif %}</span>
+          <br><span class="small">{{ "sold" if it.latest_source in sold_sources else "ask" }} ~{{ "%.2f" | format(it.latest_median) }} {{ it.latest_currency }}{% if it.latest_source == "manual_sold" %} · by hand{% endif %}</span>
           {% endif %}
         </div>
       </a>

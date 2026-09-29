@@ -105,6 +105,20 @@ check_serpapi() {
   return 1
 }
 
+check_soldcomps() {
+  # No free account endpoint: a search with no keyword is refused 400 once the
+  # key is accepted, 401 when it is not.
+  local code
+  code="$(printf 'Authorization: Bearer %s\n' "${val[SOLDCOMPS_KEY]}" |
+    curl -s -o /dev/null -w '%{http_code}' -m 15 -H @- https://api.sold-comps.com/v1/scrape)"
+  case "$code" in
+    400) echo "  SoldComps: key accepted ✓"; return 0 ;;
+    401) echo "  SoldComps: key rejected (HTTP 401)" ;;
+    *)   echo "  SoldComps: HTTP $code" ;;
+  esac
+  return 1
+}
+
 check_tmdb() {
   # /authentication answers 200 for a good key and spends nothing. A v3 key
   # (32 hex) goes in the query, fed to curl on stdin; a read token as a bearer.
@@ -204,6 +218,25 @@ if [ -n "${val[SERPAPI_KEY]:-}" ] || [[ "$serp" =~ ^[Yy] ]]; then
 else
   blank[SERPAPI_KEY]=1
   echo "  SerpApi skipped — sold lookups stay off"
+fi
+
+echo
+echo "── SoldComps sold lookups (sold-comps.com) — optional, used instead of SerpApi's ──"
+sc=""
+[ -n "${val[SOLDCOMPS_KEY]:-}" ] || read -rp "Set up SoldComps sold lookups? [y/N]: " sc
+if [ -n "${val[SOLDCOMPS_KEY]:-}" ] || [[ "$sc" =~ ^[Yy] ]]; then
+  while :; do
+    ask SOLDCOMPS_KEY "API key (sc_…)" hidden
+    check_soldcomps && break
+    unset 'val[SOLDCOMPS_KEY]'
+  done
+  if [ "${val[SOLD_LOOKUP_ENABLED]:-false}" != true ]; then
+    read -rp "Show the \"Look up eBay sold prices\" button (SOLD_LOOKUP_ENABLED)? [y/N]: " on
+    if [[ "$on" =~ ^[Yy] ]]; then val[SOLD_LOOKUP_ENABLED]=true; else val[SOLD_LOOKUP_ENABLED]=false; fi
+  fi
+else
+  blank[SOLDCOMPS_KEY]=1
+  echo "  SoldComps skipped"
 fi
 
 echo
