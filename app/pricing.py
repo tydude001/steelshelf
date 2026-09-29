@@ -841,6 +841,11 @@ _PRICE = re.compile(r"\$?(\d+(?:\.\d{1,2})?)")
 # days, so a sale older than that is one a fresh lookup would no longer see.
 SOLD_FRESH = timedelta(days=90)
 
+# A looked-up sold price counted from fewer sales than this is thin: one misjudged sale
+# is the whole price. It still outranks an ask of the film's every steelbook, but not a
+# newer ask whose listings were this edition's. A price typed in by hand is never thin.
+SOLD_OUTRANKS = 3
+
 
 def _stamp(when: datetime) -> str:
     """A moment as SQLite's `datetime('now')` stamps it: UTC, no zone."""
@@ -856,8 +861,9 @@ def current_worth(valuations, now: str | None = None):
     found nothing is an item with no price — the owner's "none of these" — and a
     sold lookup that found nothing hands the item back to its asks. A sold price
     counted across the whole film (`FILM_WIDE`) is other editions' sales: it
-    outranks nothing, and prices the item only when nothing else does. None when
-    the item has never been priced, or its deciding valuation priced nothing.
+    outranks nothing, and prices the item only when nothing else does. One counted from
+    fewer than `SOLD_OUTRANKS` sales gives way to a newer ask matched to the edition.
+    None when the item has never been priced, or its deciding valuation priced nothing.
     """
     if not valuations:
         return None
@@ -871,9 +877,18 @@ def current_worth(valuations, now: str | None = None):
     def wide_sold(v):
         return sold(v) and dict(v).get("matched") == FILM_WIDE
 
-    for v in valuations:
+    def thin(v):
+        n = dict(v).get("n_listings")
+        return v["source"] != MANUAL_SOLD and n is not None and n < SOLD_OUTRANKS
+
+    def edition_ask(v):
+        return (not sold(v) and v["median"] is not None
+                and dict(v).get("matched") not in (None, "", FILM_WIDE))
+
+    for i, v in enumerate(valuations):
         if sold(v) and not wide_sold(v):
-            if v["median"] is not None and v["fetched_at"] >= cutoff:
+            if (v["median"] is not None and v["fetched_at"] >= cutoff
+                    and not (thin(v) and any(edition_ask(a) for a in valuations[:i]))):
                 return v
             break
     newest = next((v for v in valuations

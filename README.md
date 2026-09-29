@@ -90,7 +90,8 @@ DATABASE_PATH=demo/steelshelf.db PHOTO_DIR=demo/photos REPRICE_ENABLED=false \
    that is under 90 days old (eBay's sold window) — a later ask does not
    outrank it — and otherwise its newest valuation. A sold price counted across
    the whole film (none of its sales the item's edition) outranks nothing and
-   prices the item only when nothing else does. A fetch of asks that found
+   prices the item only when nothing else does; one counted from fewer than three
+   sales gives way to a newer ask matched to the edition. A fetch of asks that found
    nothing leaves the item unpriced; a sold lookup that found nothing hands it
    back to its asks. The shelf's value tile splits the total into what sold
    prices and asks make of it. Every fetched row keeps the listings it was counted
@@ -341,6 +342,8 @@ half a shelf names no retailer. With the judge on, every title search's
 listings go to Claude with the item's fields, its front photo, and up to 12
 listing pictures, and it answers per listing: the **same** edition, **another**
 steelbook of the film, or **not one** copy (a lot, an empty case, another film).
+A special edition's (fullslip, lenticular, numbered, a boutique label's) listing
+is the same only when its title or picture shows what makes it special.
 The same ones are the price when there are enough (one for a sold lookup, three
 for asks; `matched = 'judged'`); otherwise the words decide as before, the
 not-one listings dropped. It runs on the worker first (`POST /judge`, Claude

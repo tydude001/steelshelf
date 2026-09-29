@@ -47,7 +47,11 @@ picture. For each listing, answer one verdict:
 - same: one copy of the owner's edition — the same release by the same retailer or \
 label, in the same packaging (a fullslip, lenticular or box set is its own edition), \
 in the same format. A listing that names nothing contrary and whose picture matches \
-the owner's front counts. Condition does not matter here.
+the owner's front counts — except for a special edition: when the owner's edition is \
+a fullslip, lenticular, box set, numbered or limited run, or a boutique label's (Mondo, \
+Manta Lab, Plain Archive, Nova Media and the like), the listing counts only when its \
+title names that feature or label, or its picture plainly shows it. A plain case \
+under the same art is a different release. Condition does not matter here.
 - other: one copy of a different steelbook or release of the same film: another \
 retailer's or label's, another country's, another format's, a plain case where the \
 owner's is a box set, or a non-steelbook release.

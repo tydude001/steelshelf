@@ -412,6 +412,7 @@ def valuation_history(conn: sqlite3.Connection) -> list[sqlite3.Row]:
     """Every valuation's item, source, median and moment, oldest first — the shelf's
     history."""
     return conn.execute(
-        "SELECT id, item_id, source, matched, median, currency, fetched_at FROM valuations"
+        "SELECT id, item_id, source, matched, n_listings, median, currency, fetched_at"
+        " FROM valuations"
         " ORDER BY fetched_at, id"
     ).fetchall()

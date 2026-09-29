@@ -129,3 +129,31 @@ def test_an_edition_sold_price_still_counts_behind_a_newer_film_wide_one():
 def test_a_film_wide_sold_price_prices_an_item_with_nothing_else():
     sold = wide(1, 149.99, "2026-10-21 12:00:00")
     assert current_worth([sold], NOW) is sold
+
+
+def counted(id, source, median, at, n, matched):
+    return {**v(id, source, median, at), "n_listings": n, "matched": matched}
+
+
+def test_a_sold_price_of_one_or_two_sales_gives_way_to_a_newer_edition_ask():
+    """Once Upon a Time in Hollywood's fullslip: one plain steelbook's sale, judged the
+    fullslip, priced it at $50 over asks for the fullslip itself."""
+    sold = counted(1, "soldcomps_sold", 50.0, "2026-09-29 12:00:00", 1, "judged")
+    ask = counted(2, "serpapi_active", 284.49, "2026-10-01 12:00:00", 4, "judged")
+    assert current_worth([ask, sold], NOW) is ask
+
+
+def test_a_thin_sold_price_still_outranks_a_film_wide_or_older_ask():
+    sold = counted(1, "soldcomps_sold", 630.0, "2026-09-29 12:00:00", 1, "judged")
+    wide_ask = counted(2, "serpapi_active", 143.5, "2026-10-01 12:00:00", 20, "all")
+    assert current_worth([wide_ask, sold], NOW) is sold
+    old_ask = counted(0, "serpapi_active", 284.49, "2026-09-01 12:00:00", 4, "judged")
+    assert current_worth([sold, old_ask], NOW) is sold
+
+
+def test_three_sales_or_a_typed_price_outrank_a_newer_edition_ask():
+    ask = counted(3, "serpapi_active", 90.0, "2026-10-01 12:00:00", 6, "upc")
+    three = counted(1, "soldcomps_sold", 60.0, "2026-09-29 12:00:00", 3, "judged")
+    assert current_worth([ask, three], NOW) is three
+    typed = counted(2, "manual_sold", 60.0, "2026-09-29 12:00:00", 1, "typed")
+    assert current_worth([ask, typed], NOW) is typed

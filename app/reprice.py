@@ -8,7 +8,8 @@ saves a search and whatever a stopped run did not reach goes first next time.
 An item whose latest price was typed in by hand is left alone: that price stays
 put until the owner enters another. A sold price looked up (not typed) is re-priced,
 but a newer ask does not outrank it until it is `SOLD_FRESH` old (`current_worth`),
-unless its sales were all other editions'.
+unless its sales were all other editions', or fewer than `SOLD_OUTRANKS` and the ask
+was this edition's.
 
 SerpApi's free plan is 250 searches a month and a run of the shelf costs one per
 item, so with SerpApi the run reads the account's count first (the Account API is
