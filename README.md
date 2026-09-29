@@ -377,14 +377,17 @@ alone, like every other source; `totalPrice` adds shipping.
   the chart geometry the templates draw as inline SVG), `db.py` (schema:
   `items`, `photos`, `valuations`, `listings`, and the re-price log
   `reprice_runs` / `reprice_items`), `settings.py` (env via pydantic-settings),
-  `pricing.py` (the `PricingSource` interface; `EbayActive`, by UPC;
-  `EbayKeyword`, which the app uses — UPC when there is one, else a title
-  search filtered to steelbooks of that title and format, saved as
-  `source = 'ebay_keyword'`; `value_item`, which appends a `valuations`
-  row; `SerpApiSold` / `SerpApiActive`, sold listings and asks by title, and
-  `SoldComps`, sold listings by title from another vendor, all off unless
-  enabled; and
-  `parse_prices` / `record_sold`, for sold prices typed in), `identify.py` (the `Identifier`
+  `pricing.py` (the `PricingSource` interface; `current_worth`, which
+  valuation an item is worth; `EbayActive`, by UPC; `EbayKeyword`, which
+  the app uses — UPC when there is one, else a title search filtered to
+  steelbooks of that title and format, saved as `source = 'ebay_keyword'`;
+  `value_item`, which appends a `valuations` row; `TitleSearched`, the UPC →
+  own search → title pipeline behind `SerpApiSold` / `SerpApiActive` and
+  `SoldComps`, all off unless enabled; `narrow_edition`, the judge then the
+  word tiers; and `parse_prices` / `record_sold`, for sold prices typed in),
+  `judge.py` (which listings are the item's edition: `ClaudeJudge`,
+  `WorkerJudge`, `FallbackJudge`, and `ListingJudge`, which the sources
+  hold), `identify.py` (the `Identifier`
   interface; `ClaudeVision`: photos downscaled to 2576px, one Messages API
   call with a JSON-schema output, web search capped at 3, a paused search
   turn resumed, server-side refusal fallbacks on; `ClaudeCodeWorker`, the
@@ -409,7 +412,7 @@ alone, like every other source; `totalPrice` adds shipping.
 - `data/` — SQLite (`steelshelf.db`) + `photos/`. **Git-ignored** but for an
   empty `.gitkeep`, so compose has a mount source.
 - `tools/` — run on the machine logged in to Claude Code, not in the image. `worker.py` is the identify
-  worker (user unit `steelshelf-worker`, `:8012`, bearer secret); its docstring
+  and listing-judge worker (user unit `steelshelf-worker`, `:8012`, bearer secret); its docstring
   has the install.
 - `scripts/` — `demo.py` (the demo shelf), `set-secrets.sh` and `set-key.sh` (§ Keys, their live checks in
   `checks.sh`), and

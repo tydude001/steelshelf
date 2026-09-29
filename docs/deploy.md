@@ -82,7 +82,11 @@ the worker is off or fails:
 3. In the app's `.env`, set `WORKER_URL` (`http://<worker host>:8012`) and
    `WORKER_SECRET` to the same secret, then recreate the container.
 
+The same worker also judges listings for pricing (`POST /judge`) when the
+app's `JUDGE_LISTINGS` is on; pull and restart it after an upgrade so it has
+the app's current prompts and schemas.
+
 The worker runs Claude Code headless with only Read (confined to the photos)
-and WebSearch. It uses your own `claude` login on your own machine; whether
+and, for identify, WebSearch. It uses your own `claude` login on your own machine; whether
 that use fits your plan's terms is between you and Anthropic. The app never
 holds the subscription's credentials.
