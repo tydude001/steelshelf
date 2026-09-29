@@ -1,9 +1,13 @@
 # CLAUDE.md — steelshelf repo
 
 **steelshelf** — photograph a steelbook, log it, value it. Self-hosted
-FastAPI + Jinja + HTMX, SQLite, Docker. The design, the pricing-source
-decision and the identification pipeline are in [README.md](README.md); read
-that first.
+FastAPI + Jinja + HTMX, SQLite, Docker. [README.md](README.md) is the public
+front page; the design lives in `docs/` — read the one a task touches first:
+[identification.md](docs/identification.md) (capture, barcode, vision, drafts,
+the model decision), [pricing.md](docs/pricing.md) (worth, edition matching,
+re-price, the pricing-source decision), [shelf.md](docs/shelf.md) (sorts,
+TMDB, spines, stats), [architecture.md](docs/architecture.md) (every module).
+Detail goes in those; the README keeps features, setup, keys and limits.
 
 ## Environment
 
@@ -17,7 +21,7 @@ that first.
 - **Asks are labelled asks, sold prices sold.** A median ask usually runs above
   what sells, so it is never passed off as a sale or scaled by a guess. Every SerpApi source
   scrapes eBay, so all sit behind `SOLD_LOOKUP_ENABLED` — never on by default.
-  README § Pricing source.
+  docs/pricing.md § Pricing source.
 - **`valuations` is append-only.** A refetch adds a row; the chart depends
   on history surviving.
 - **No third party on a page-render path.** Identification and pricing run

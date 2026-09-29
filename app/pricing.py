@@ -5,7 +5,7 @@ eBay's Browse API, searched by UPC. `EbayKeyword` is the same, but falls back
 to a keyword search on the title when an item has no UPC, and filters the
 noisier results down to steelbooks of that title and format. Both are asks,
 not sold prices — a median ask usually runs above what copies sell for, most
-for hyped titles. README § Pricing source has the decision and the
+for hyped titles. docs/pricing.md § Pricing source has the decision and the
 order alternatives would be tried in. A new source implements
 `PricingSource` and nothing else changes.
 

@@ -1,7 +1,7 @@
 # Deploying steelshelf
 
 One container, one port, one directory of state. This is the recipe for a
-home server; the README's quick start is the same thing in four lines.
+home server; the README's quick start is the same thing in three lines.
 
 ## Compose
 

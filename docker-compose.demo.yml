@@ -1,0 +1,25 @@
+# The demo shelf in Docker, no .env and no keys:
+#
+#   docker compose -f docker-compose.demo.yml up --build   # http://localhost:8011
+#
+# Twenty invented steelbooks with drawn photos and made-up prices
+# (scripts/demo.py), rebuilt inside the container on every start and gone
+# with it. Writes log in as demo / demo; identify and pricing need keys, so
+# here they fail and say so.
+services:
+  demo:
+    build: .
+    ports:
+      - "8011:8010"
+    environment:
+      DATABASE_PATH: /app/demo/steelshelf.db
+      PHOTO_DIR: /app/demo/photos
+      REPRICE_ENABLED: "false"
+      ADMIN_USER: demo
+      ADMIN_PASSWORD: demo
+    volumes:
+      # The image carries app/ only; the demo builder sits beside it.
+      - ./scripts:/app/scripts:ro,z
+    command: >-
+      sh -c "python scripts/demo.py --force &&
+      exec uvicorn app.main:app --host 0.0.0.0 --port 8010"

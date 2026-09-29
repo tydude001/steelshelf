@@ -5,17 +5,20 @@ in their spare time, so a reply can take a while.
 
 ## Before you start
 
-For anything bigger than a bug fix, open an issue first. The README explains
-what the app does and why its pricing works the way it does; a change that
-fights the rules below will usually be turned down however good the code is.
+For anything bigger than a bug fix, open an issue first. The README says what
+the app does; [docs/](docs/) explains how it identifies, prices and lays out
+the shelf, and why; a change that fights the rules below will usually be
+turned down however good the code is.
 
 ## The rules a pull request is checked against
 
-- **Asks are a floor; sold prices are labelled sold.** Active listings are
-  what things are offered at, not what they clear at, and the pages say so.
-  Every source that scrapes eBay's sold search (SerpApi, and any vendor like
-  it) sits behind `SOLD_LOOKUP_ENABLED`, which is never on by default. README
-  § Pricing source has the argument.
+- **Asks are labelled asks; sold prices are labelled sold.** Active listings
+  are what things are offered at, not what they clear at — a median ask
+  usually runs above what sells — and the pages say so; an ask is never
+  scaled by a guess. Every source that scrapes eBay's sold search (SerpApi,
+  SoldComps, and any vendor like it) sits behind `SOLD_LOOKUP_ENABLED`, which
+  is never on by default. [docs/pricing.md](docs/pricing.md#pricing-source--the-decision)
+  has the argument.
 - **`valuations` is append-only.** A refetch adds a row and never overwrites
   one; the value-over-time chart depends on the history surviving.
 - **No third party on a page-render path.** Identification, pricing and film
