@@ -145,7 +145,10 @@ DATABASE_PATH=demo/steelshelf.db PHOTO_DIR=demo/photos REPRICE_ENABLED=false \
 `scripts/set-secrets.sh` prompts for each one (hidden input, Enter keeps the
 current value), checks it with a real call, and writes `./.env`, mode 600;
 `--remote user@host:/path/to/clone` writes that clone's `.env` over ssh
-instead. Keep a copy of every secret in a password manager. Never in git.
+instead. To add or rotate one key in an existing `.env`, `scripts/set-key.sh
+KEY` (same `--remote`) asks for that one, checks it the same way, and leaves
+every other line as it was. Keep a copy of every secret in a password
+manager. Never in git.
 
 - **eBay** — a Production keyset.
   1. Sign in at <https://developer.ebay.com> (a developer account, separate
@@ -334,7 +337,8 @@ alone, like every other source; `totalPrice` adds shipping.
 - `tools/` — run on the machine logged in to Claude Code, not in the image. `worker.py` is the identify
   worker (user unit `steelshelf-worker`, `:8012`, bearer secret); its docstring
   has the install.
-- `scripts/` — `demo.py` (the demo shelf), `set-secrets.sh` (§ Keys), and
+- `scripts/` — `demo.py` (the demo shelf), `set-secrets.sh` and `set-key.sh` (§ Keys, their live checks in
+  `checks.sh`), and
   the icon and lockup renderers.
 - `tests/` — pytest over a throwaway SQLite DB per test (`conftest.py`); no
   network, no real `data/`.
