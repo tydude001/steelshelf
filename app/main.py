@@ -73,7 +73,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.concurrency import run_in_threadpool
 
-from app import barcode, db, film, photos, present, reprice, shelf, spine, stats
+from app import barcode, db, film, judge, photos, present, reprice, shelf, spine, stats
 from app.auth import require_admin
 from app.identify import (
     BOXED_WORDS,
@@ -263,6 +263,28 @@ def asks_via_serpapi() -> bool:
     return not has_keyset and settings.sold_lookup_enabled and bool(settings.serpapi_key)
 
 
+def front_photo_bytes(item_id: int) -> bytes | None:
+    """The item's front photo, for the listing judge to set listings against."""
+    with db.connect(settings.database_path) as conn:
+        row = db.front_photo(conn, item_id)
+    path = photos.resolve(settings.photo_dir, row["path"]) if row else None
+    return path.read_bytes() if path else None
+
+
+def get_judge() -> judge.ListingJudge | None:
+    """The listing judge when JUDGE_LISTINGS is on: the worker, then the API (either
+    alone when only one is set up); None when off or neither is."""
+    if not settings.judge_listings:
+        return None
+    api = (judge.ClaudeJudge(settings.anthropic_api_key, settings.judge_model)
+           if settings.anthropic_api_key else None)
+    on_worker = (judge.WorkerJudge(settings.worker_url, settings.worker_secret)
+                 if settings.worker_url and settings.worker_secret else None)
+    chosen = (judge.FallbackJudge(on_worker, api) if on_worker and api
+              else on_worker or api)
+    return judge.ListingJudge(chosen, front_photo_bytes) if chosen else None
+
+
 def get_pricing() -> PricingSource:
     """One ask source per process; EbayKeyword so its application token is reused."""
     global _pricing
@@ -274,6 +296,7 @@ def get_pricing() -> PricingSource:
                 settings.ebay_client_id, settings.ebay_client_secret,
                 settings.ebay_marketplace_id,
             )
+        _pricing.judge = get_judge()
     return _pricing
 
 
@@ -333,6 +356,7 @@ def get_sold_pricing() -> PricingSource:
             _sold_pricing = SoldComps(settings.soldcomps_key)
         else:
             _sold_pricing = SerpApiSold(settings.serpapi_key)
+        _sold_pricing.judge = get_judge()
     return _sold_pricing
 
 

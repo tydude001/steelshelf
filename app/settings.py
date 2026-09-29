@@ -24,6 +24,12 @@ class Settings(BaseSettings):
     anthropic_api_key: str = ""
     anthropic_model: str = "claude-sonnet-5"
 
+    # Claude judges which of a title search's listings are the item's edition
+    # (app/judge.py): on the worker when WORKER_URL is set, else the API. Off by
+    # default, since every price fetch then makes one more Claude call.
+    judge_listings: bool = False
+    judge_model: str = "claude-haiku-4-5"
+
     # TMDB's v3 API key or v4 read access token: genre and director by title
     # (app/film.py). Unset, nothing is looked up and both are typed on the edit form.
     tmdb_api_key: str = ""

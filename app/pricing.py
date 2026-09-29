@@ -35,6 +35,8 @@ from typing import NamedTuple, Protocol
 
 import httpx
 
+from app.judge import JudgeError
+
 log = logging.getLogger("steelshelf.pricing")
 
 
@@ -189,7 +191,8 @@ class EbayActive:
         listings = [
             Listing(s.get("title", ""), float(s["price"]["value"]),
                     key=s.get("itemId") or s.get("title", ""),
-                    condition=s.get("condition", ""), url=s.get("itemWebUrl", ""))
+                    condition=s.get("condition", ""), url=s.get("itemWebUrl", ""),
+                    thumb=(s.get("image") or {}).get("imageUrl", ""))
             for s in summaries
             if s.get("price", {}).get("currency") == currency
         ]
@@ -308,6 +311,7 @@ class EbayKeyword(EbayActive):
 
     name = "ebay_keyword"
     CATEGORY = "617"  # DVDs & Blu-ray Discs, EBAY_US
+    judge = None  # as `TitleSearched.judge`
 
     def quote(self, item: sqlite3.Row) -> Quote:
         if (item["upc"] or "").strip():
@@ -317,7 +321,7 @@ class EbayKeyword(EbayActive):
         kept = [s for s in summaries if keyword_match(s.get("title", ""), item)]
         log.info("keyword %r: kept %d of %d listings", q, len(kept), len(summaries))
         listings, currency = self._listings(kept, f"keyword {q!r}")
-        chosen, matched = prefer_edition_sales(listings, item)
+        chosen, matched = narrow_edition(listings, item, 3, self.judge)
         log.info("keyword %r: %d named the edition (%s)", q, len(chosen), matched)
         return from_listings(self.name, chosen, currency, matched)
 
@@ -359,6 +363,31 @@ def region_match(listing_title: str, item: sqlite3.Row) -> bool:
 
 
 FILM_WIDE = "all"  # a quote counted across every steelbook of the film
+
+
+def narrow_edition(sales: list[Listing], item, minimum: int, judge=None
+                   ) -> tuple[list[Listing], str]:
+    """A title search's listings narrowed to the item's edition, and how.
+
+    With a judge, Claude's `same` listings are the price when there are `minimum`
+    of them (`matched = 'judged'`), and its `not_one` listings are dropped whatever
+    happens next; too few `same`, or a judge that fails, and the words decide
+    (`prefer_edition_sales`), as with no judge.
+    """
+    if judge is not None and sales:
+        try:
+            verdicts = judge(item, sales)
+        except JudgeError as exc:
+            log.warning("listing judge skipped: %s", exc)
+        else:
+            same = [s for s in sales if verdicts.get(s.key) == "same"]
+            log.info("judge: %d same, %d other, %d not one copy", len(same),
+                     sum(v == "other" for v in verdicts.values()),
+                     sum(v == "not_one" for v in verdicts.values()))
+            if len(same) >= minimum:
+                return same, "judged"
+            sales = [s for s in sales if verdicts.get(s.key) != "not_one"]
+    return prefer_edition_sales(sales, item, minimum)
 
 # Parts of an edition that name no edition in particular, or one copy of it.
 _GENERIC_EDITION = re.compile(
@@ -571,9 +600,12 @@ class TitleSearched:
                  f", {fit}" if fit else "")
         return replace(from_listings(name, chosen, "USD", matched), searches=searches)
 
+    # Set, a `judge.ListingJudge` asked which listings are the item's edition first.
+    judge = None
+
     def narrow(self, sales: list[Listing], item: sqlite3.Row) -> tuple[list[Listing], str]:
         """The title search's listings narrowed to the item's edition, and how."""
-        return prefer_edition_sales(sales, item, self.EDITION_MINIMUM)
+        return narrow_edition(sales, item, self.EDITION_MINIMUM, self.judge)
 
     def _check(self) -> None:
         pass

@@ -223,7 +223,9 @@ manager. Never in git.
 ## Privacy
 
 Your photos and your database stay on your machine. Photos leave it only when
-you press **Identify**, to Anthropic's API or to your own Claude Code worker.
+you press **Identify**, to Anthropic's API or to your own Claude Code worker —
+and, with `JUDGE_LISTINGS` on, the front photo and the item's fields go the same
+way with each price fetch, for the listing judge.
 Titles go to TMDB for genre and director; titles and UPCs go to eBay (and
 SerpApi, if you switch sold lookups on) for prices. Nothing is sent anywhere
 else, and there is no telemetry.
@@ -325,6 +327,20 @@ year right after the title must be within one of the film's ("The Thing
 (2011)" is not the 1982 case). TMDB fills the year where it is blank, picks the
 remake by it when the item has one, and at startup fills it for items matched
 before it was kept.
+
+**Claude judges the listings** (`app/judge.py`, `JUDGE_LISTINGS`, off by
+default). Words narrow a title search only as far as the listing titles say, and
+half a shelf names no retailer. With the judge on, every title search's
+listings go to Claude with the item's fields, its front photo, and up to 12
+listing pictures, and it answers per listing: the **same** edition, **another**
+steelbook of the film, or **not one** copy (a lot, an empty case, another film).
+The same ones are the price when there are enough (one for a sold lookup, three
+for asks; `matched = 'judged'`); otherwise the words decide as before, the
+not-one listings dropped. It runs on the worker first (`POST /judge`, Claude
+Code on your subscription, `WORKER_JUDGE_MODEL`, default Haiku 4.5) and falls
+back to the API (`JUDGE_MODEL`, the same); a judge that fails is logged and
+skipped, never a failed price. A UPC search is the exact product and is not
+judged. Each fetch is one short Claude call more, which is why it is a switch.
 
 **Sold lookups through SoldComps** (`source = 'soldcomps_sold'`), added
 2026-09-29 when SerpApi's sold search returned 503 for every query while its
