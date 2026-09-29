@@ -838,22 +838,32 @@ def current_worth(valuations, now: str | None = None):
     it is under `SOLD_FRESH` old at `now` (a UTC stamp; default the present), whatever
     asks came after it; otherwise the newest valuation does. A newest valuation that
     found nothing is an item with no price — the owner's "none of these" — and a
-    sold lookup that found nothing hands the item back to its asks. None when the
-    item has never been priced, or its deciding valuation priced nothing.
+    sold lookup that found nothing hands the item back to its asks. A sold price
+    counted across the whole film (`FILM_WIDE`) is other editions' sales: it
+    outranks nothing, and prices the item only when nothing else does. None when
+    the item has never been priced, or its deciding valuation priced nothing.
     """
     if not valuations:
         return None
     cutoff = _stamp(
         (datetime.fromisoformat(now).replace(tzinfo=UTC) if now else datetime.now(UTC))
         - SOLD_FRESH)
+
+    def sold(v):
+        return dict(v).get("source") in SOLD_SOURCES
+
+    def wide_sold(v):
+        return sold(v) and dict(v).get("matched") == FILM_WIDE
+
     for v in valuations:
-        if dict(v).get("source") in SOLD_SOURCES:
+        if sold(v) and not wide_sold(v):
             if v["median"] is not None and v["fetched_at"] >= cutoff:
                 return v
             break
     newest = next((v for v in valuations
-                   if v["median"] is not None or dict(v).get("source") not in SOLD_SOURCES),
-                  None)
+                   if not wide_sold(v) and (v["median"] is not None or not sold(v))), None)
+    if newest is None:
+        newest = next((v for v in valuations if v["median"] is not None), None)
     return newest if newest is not None and newest["median"] is not None else None
 
 

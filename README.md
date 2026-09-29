@@ -88,7 +88,9 @@ DATABASE_PATH=demo/steelshelf.db PHOTO_DIR=demo/photos REPRICE_ENABLED=false \
    `pricing.current_worth`, read by the shelf total, the item page, `/stats`,
    the value chart and the monthly re-price alike: its newest sold price while
    that is under 90 days old (eBay's sold window) — a later ask does not
-   outrank it — and otherwise its newest valuation. A fetch of asks that found
+   outrank it — and otherwise its newest valuation. A sold price counted across
+   the whole film (none of its sales the item's edition) outranks nothing and
+   prices the item only when nothing else does. A fetch of asks that found
    nothing leaves the item unpriced; a sold lookup that found nothing hands it
    back to its asks. The shelf's value tile splits the total into what sold
    prices and asks make of it. Every fetched row keeps the listings it was counted

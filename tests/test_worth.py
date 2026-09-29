@@ -107,3 +107,25 @@ def test_the_shelf_floor_splits_sold_from_asks_and_counts_paid_once():
     assert (usd["total"], usd["sold"], usd["n_sold"], usd["asks"]) == (120.0, 100.0, 1, 20.0)
     assert (usd["paid"], usd["n_paid"]) == (60.0, 2)
     assert (gbp["paid"], gbp["n_paid"]) == (25.0, 1)
+
+
+def wide(id, median, at):
+    return {**v(id, "soldcomps_sold", median, at), "matched": "all"}
+
+
+def test_a_film_wide_sold_price_does_not_outrank_an_ask():
+    ask = v(1, "serpapi_active", 249.97, "2026-10-20 12:00:00")
+    sold = wide(2, 149.99, "2026-10-21 12:00:00")
+    assert current_worth([sold, ask], NOW) is ask
+
+
+def test_an_edition_sold_price_still_counts_behind_a_newer_film_wide_one():
+    mine = {**v(1, "soldcomps_sold", 630.0, "2026-10-01 12:00:00"), "matched": "judged"}
+    ask = v(2, "serpapi_active", 143.5, "2026-10-10 12:00:00")
+    sold = wide(3, 150.0, "2026-10-20 12:00:00")
+    assert current_worth([sold, ask, mine], NOW) is mine
+
+
+def test_a_film_wide_sold_price_prices_an_item_with_nothing_else():
+    sold = wide(1, 149.99, "2026-10-21 12:00:00")
+    assert current_worth([sold], NOW) is sold

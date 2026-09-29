@@ -7,7 +7,8 @@ priced since the cycle began, oldest price first, so a hand refresh after the 25
 saves a search and whatever a stopped run did not reach goes first next time.
 An item whose latest price was typed in by hand is left alone: that price stays
 put until the owner enters another. A sold price looked up (not typed) is re-priced,
-but a newer ask does not outrank it until it is `SOLD_FRESH` old (`current_worth`).
+but a newer ask does not outrank it until it is `SOLD_FRESH` old (`current_worth`),
+unless its sales were all other editions'.
 
 SerpApi's free plan is 250 searches a month and a run of the shelf costs one per
 item, so with SerpApi the run reads the account's count first (the Account API is
@@ -33,6 +34,7 @@ import httpx
 
 from app import db
 from app.pricing import (
+    FILM_WIDE,
     MANUAL_SOLD,
     PricingError,
     PricingSource,
@@ -149,8 +151,9 @@ def run(
 
     With a `sold` source, the most valuable planned items are looked up sold first,
     within what is left of `sold_budget` this cycle; an item whose lookup finds no
-    sale, or fails, is priced from asks as usual. `source` is the ask source, and its
-    searches are counted against `account`'s count, less `reserve`."""
+    sale, fails, or finds only other editions' sales (`FILM_WIDE`) is priced from
+    asks as usual. `source` is the ask source, and its searches are counted against
+    `account`'s count, less `reserve`."""
     plan = planned(conn, since)
     left = None
     if account is not None:
@@ -215,7 +218,7 @@ def run(
 
 def _sold(conn, source, item_id) -> tuple[str | None, str | None, int]:
     """('priced', 'sold', searches) when a sold lookup priced the item; (None, why,
-    searches) when it found no sale or failed, so asks price it; QUOTA when the
+    searches) when it found no sale, only other editions', or failed, so asks price it; QUOTA when the
     vendor says the month's requests are spent. Tried once: a quota is small."""
     try:
         quote = fetch_quote(conn, item_id, source)
@@ -229,6 +232,8 @@ def _sold(conn, source, item_id) -> tuple[str | None, str | None, int]:
     if not quote.n_listings:
         return None, None, quote.searches
     append_quote(conn, item_id, quote, VIA)
+    if quote.matched == FILM_WIDE:
+        return None, None, quote.searches  # other editions' sales: asks price it
     return "priced", "sold", quote.searches
 
 

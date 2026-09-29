@@ -289,6 +289,23 @@ def test_the_sold_budget_spans_the_cycle_and_a_quota_answer_stops_it(conn):
     assert len(quota.asked) == 1 and sorted(asks.asked) == ["D", "E", "F"]
 
 
+def test_a_film_wide_sold_lookup_is_kept_but_asks_price_the_item(conn):
+    item = add(conn, "Dear", "2026-08-01 00:00:00", median=600.0)
+
+    class WideSold(FakeSold):
+        def quote(self, item):
+            return replace(super().quote(item), matched="all")
+
+    asks = Fake()
+    reprice.run(conn, asks, "schedule", SINCE, wait=lambda s: None,
+                sold=WideSold({"Dear": 150.0}), sold_budget=1)
+    assert asks.asked == ["Dear"]
+    rows = [(r["source"], r["matched"]) for r in conn.execute(
+        "SELECT source, matched FROM valuations WHERE via = 'monthly' AND item_id = ?"
+        " ORDER BY id", (item,))]
+    assert rows == [("soldcomps_sold", "all"), ("fake", None)]
+
+
 def test_the_scheduler_passes_the_sold_source_on(conn):
     add(conn, "A")
     path = conn.execute("PRAGMA database_list").fetchone()["file"]
