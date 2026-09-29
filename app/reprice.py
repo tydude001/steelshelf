@@ -196,6 +196,10 @@ def run(
         fails_in_a_row = fails_in_a_row + 1 if outcome == "failed" else 0
         conn.execute("INSERT INTO reprice_items (run_id, item_id, outcome, detail)"
                      " VALUES (?, ?, ?, ?)", (run_id, item_id, outcome, detail))
+        conn.execute(  # so /stats counts a run that is still going
+            "UPDATE reprice_runs SET priced = ?, no_listings = ?, failed = ?, sold_searches = ?"
+            " WHERE id = ?",
+            (counts["priced"], counts["no_listings"], counts["failed"], sold_used, run_id))
         conn.commit()
         if fails_in_a_row >= FAILS_TO_STOP:
             stopped = ERRORS

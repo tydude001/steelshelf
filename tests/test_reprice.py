@@ -116,6 +116,21 @@ def test_a_run_appends_monthly_rows_and_writes_nothing_for_no_listings(conn):
     assert run["finished_at"]
 
 
+def test_the_run_row_counts_each_item_as_it_goes(conn):
+    add(conn, "Alien", "2026-08-01 00:00:00")
+    add(conn, "Brazil", "2026-08-02 00:00:00")
+    seen = []
+
+    class Watching(Fake):
+        def quote(self, item):
+            run = reprice.last_run(conn)
+            seen.append((run["priced"], run["finished_at"]))
+            return super().quote(item)
+
+    reprice.run(conn, Watching(), "hand", SINCE, wait=lambda s: None)
+    assert seen == [(0, None), (1, None)]
+
+
 def test_a_failure_is_tried_once_more_then_skipped(conn):
     add(conn, "Alien")
     add(conn, "Brazil")
