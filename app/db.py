@@ -80,7 +80,8 @@ CREATE TABLE IF NOT EXISTS valuations (
     via         TEXT,               -- 'monthly' | NULL (by hand)
     matched     TEXT                -- how its listings were matched to the edition:
                                     -- upc|judged|keywords|retailer+region|retailer|
-                                    -- region|all; NULL typed in or from before
+                                    -- region|all|typed; NULL = from before, when
+                                    -- low and high were the extremes, not quartiles
 );
 CREATE INDEX IF NOT EXISTS idx_valuations_item ON valuations(item_id, fetched_at);
 

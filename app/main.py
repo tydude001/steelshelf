@@ -86,6 +86,7 @@ from app.identify import (
 )
 from app.pricing import (
     MANUAL_SOLD,
+    QUARTILES_FROM,
     SOLD_FRESH,
     SOLD_SOURCES,
     EbayKeyword,
@@ -115,6 +116,7 @@ TEMPLATES.env.filters["spine_face"] = shelf.spine_face
 # The genre and director fields say TMDB fills them only when it will.
 TEMPLATES.env.globals["tmdb_on"] = lambda: bool(settings.tmdb_api_key)
 TEMPLATES.env.globals["sold_sources"] = SOLD_SOURCES
+TEMPLATES.env.globals["quartiles_from"] = QUARTILES_FROM
 # A short tag for an image URL that changes when the image does (a new crop).
 TEMPLATES.env.filters["ver"] = lambda text: format(zlib.crc32((text or "").encode()), "x")
 STATIC = Path(__file__).parent / "static"
@@ -423,11 +425,13 @@ def review(request: Request):
     with db.connect(settings.database_path) as conn:
         thin = db.items_to_review(conn)
         items = db.list_items(conn)
+    wide = stats.film_wide(items)
     checks = [(it, why, spine.Box.loads(it["spine_box"])) for it in items
               if (why := shelf.spine_check(it))]
     n_photo = sum(1 for it in items if shelf.spine_face(it)[0] == "photo")
     return TEMPLATES.TemplateResponse(
-        request, "review.html", {"thin": thin, "checks": checks, "n_photo": n_photo})
+        request, "review.html",
+        {"thin": thin, "checks": checks, "n_photo": n_photo, "wide": wide})
 
 
 def _price_kinds(items) -> dict[str, int]:
@@ -703,7 +707,7 @@ def item_page(request: Request, item_id: int, error: str | None = None):
             "sold_fit": _sold_fit(item, shown, listings),
             "confidence": shown and confidence(
                 shown["n_listings"], shown["low"], shown["high"], shown["median"],
-                "sale" if shown["source"] in SOLD_SOURCES else "listing"),
+                "sale" if shown["source"] in SOLD_SOURCES else "listing", shown["matched"]),
             "chart": present.line([(v["fetched_at"], v["median"]) for v in reversed(valuations)
                                    if v["median"] is not None]),
         }

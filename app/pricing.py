@@ -61,6 +61,13 @@ class Quote:
     n_listings: int
     currency: str
     listings: tuple[Listing, ...] = ()  # the ones the summary was computed from
+    # How the listings were matched to the item's edition: 'upc' (an exact-product
+    # search), 'judged' (Claude kept the same edition), 'keywords' / 'retailer+region'
+    # / 'retailer' / 'region' (the listings named it), or 'all' — the film's every
+    # steelbook, which caps the confidence cue; 'typed' for sold prices entered by
+    # hand. Every row since this was recorded has one, and quotes its range as
+    # `spread` does; a row without one is older and ran low to high.
+    matched: str = ""
 
 
 class PricingSource(Protocol):
@@ -69,25 +76,44 @@ class PricingSource(Protocol):
     def quote(self, item: sqlite3.Row) -> Quote: ...
 
 
+# From this many prices the range is the middle half (the quartiles), so one stray
+# listing — a $965 "Arrival" among $50 ones — moves neither end; below it, low to high.
+QUARTILES_FROM = 5
+
+
+def spread(prices: list[float]) -> tuple[float, float]:
+    """The range a price list is quoted with: its quartiles from `QUARTILES_FROM`
+    prices, else its lowest and highest."""
+    if len(prices) < QUARTILES_FROM:
+        return min(prices), max(prices)
+    q1, _, q3 = statistics.quantiles(prices, n=4, method="inclusive")
+    return round(q1, 2), round(q3, 2)
+
+
 def summarize(
-    source: str, prices: list[float], currency: str, listings: list[Listing] | tuple = ()
+    source: str, prices: list[float], currency: str, listings: list[Listing] | tuple = (),
+    matched: str = "",
 ) -> Quote:
-    """Low / median / high of a price list. An empty list is a quote too: nothing listed."""
+    """Low / median / high of a price list, low and high as `spread` has them. An empty
+    list is a quote too: nothing listed."""
     if not prices:
-        return Quote(source, None, None, None, 0, currency, tuple(listings))
+        return Quote(source, None, None, None, 0, currency, tuple(listings), matched)
+    low, high = spread(prices)
     return Quote(
         source,
-        min(prices),
+        low,
         round(statistics.median(prices), 2),
-        max(prices),
+        high,
         len(prices),
         currency,
         tuple(listings),
+        matched,
     )
 
 
-def from_listings(source: str, listings: list[Listing] | tuple, currency: str) -> Quote:
-    return summarize(source, [ls.price for ls in listings], currency, listings)
+def from_listings(source: str, listings: list[Listing] | tuple, currency: str,
+                  matched: str = "") -> Quote:
+    return summarize(source, [ls.price for ls in listings], currency, listings, matched)
 
 
 class EbayActive:
@@ -177,7 +203,7 @@ class EbayActive:
         listings, currency = self._listings(self._search({"gtin": upc}), f"upc {upc}")
         # Named explicitly, not self.name: EbayKeyword reaches here for UPC items, and
         # those quotes are still exact-product asks.
-        return from_listings(EbayActive.name, listings, currency)
+        return from_listings(EbayActive.name, listings, currency, "upc")
 
 
 _STOPWORDS = {"the", "a", "an", "of", "and"}
@@ -282,7 +308,9 @@ class EbayKeyword(EbayActive):
         kept = [s for s in summaries if keyword_match(s.get("title", ""), item)]
         log.info("keyword %r: kept %d of %d listings", q, len(kept), len(summaries))
         listings, currency = self._listings(kept, f"keyword {q!r}")
-        return from_listings(self.name, listings, currency)
+        chosen, matched = prefer_edition_sales(listings, item)
+        log.info("keyword %r: %d named the edition (%s)", q, len(chosen), matched)
+        return from_listings(self.name, chosen, currency, matched)
 
 
 # Words that name no particular retailer or label: "Amazon.com Exclusive" is Amazon.
@@ -321,6 +349,9 @@ def region_match(listing_title: str, item: sqlite3.Row) -> bool:
     return bool(_REGION_WORDS.get(region, {region.lower()}) & _words(listing_title))
 
 
+FILM_WIDE = "all"  # a quote counted across every steelbook of the film
+
+
 def prefer_edition_sales(sales: list, item: sqlite3.Row, minimum: int = 3) -> tuple[list, str]:
     """Narrow sales (anything (title, price, …)-shaped) to the item's own edition when
     enough of them say so.
@@ -340,7 +371,7 @@ def prefer_edition_sales(sales: list, item: sqlite3.Row, minimum: int = 3) -> tu
         kept = [s for s in sales if keep(s[0])]
         if len(kept) >= minimum:
             return kept, label
-    return list(sales), "all"
+    return list(sales), FILM_WIDE
 
 
 # A sold lookup narrows to the item's edition on a single sale that names it. A sale
@@ -471,7 +502,7 @@ class SerpApiEbay:
             edition = f"{edition}, {fit}"
         log.info("%s %r: kept %d of %d, %d priced, %d used (%s)",
                  name, q, len(kept), len(results), len(sales), len(chosen), edition)
-        return from_listings(name, chosen, "USD")
+        return from_listings(name, chosen, "USD", edition.split(",")[0])
 
     @staticmethod
     def _listing(result: dict) -> Listing:
@@ -550,7 +581,7 @@ class SoldComps:
         chosen, fit = prefer_condition(chosen, item)
         log.info("%s %r: kept %d of %d, %d priced, %d used (%s, %s)",
                  self.name, q, len(kept), len(results), len(sales), len(chosen), edition, fit)
-        return from_listings(self.name, chosen, "USD")
+        return from_listings(self.name, chosen, "USD", edition)
 
     @staticmethod
     def _price(result: dict) -> float | None:
@@ -615,7 +646,7 @@ def without_excluded(quote: Quote, excluded: set[str]) -> Quote:
     counted = [ls for ls in quote.listings if ls.key not in excluded]
     if len(counted) == len(quote.listings):
         return quote
-    return replace(from_listings(quote.source, counted, quote.currency),
+    return replace(from_listings(quote.source, counted, quote.currency, quote.matched),
                    listings=quote.listings)
 
 
@@ -639,7 +670,8 @@ def toggle_listing(conn: sqlite3.Connection, item_id: int, listing_id: int) -> i
         for r in conn.execute("SELECT * FROM listings WHERE valuation_id = ? ORDER BY id",
                               (latest["id"],))
     ]
-    quote = from_listings(latest["source"], listings, latest["currency"])
+    quote = from_listings(latest["source"], listings, latest["currency"],
+                          latest["matched"] or "")
     return _append(conn, item_id, without_excluded(quote, excluded_keys(conn, item_id)))
 
 
@@ -704,15 +736,16 @@ def parse_prices(text: str) -> list[float]:
 
 def record_sold(conn: sqlite3.Connection, item_id: int, prices: list[float]) -> int:
     """Append a `valuations` row from sold prices entered by hand."""
-    return _append(conn, item_id, summarize(MANUAL_SOLD, prices, "USD"))
+    return _append(conn, item_id, summarize(MANUAL_SOLD, prices, "USD", matched="typed"))
 
 
 def _append(conn: sqlite3.Connection, item_id: int, q: Quote, via: str | None = None) -> int:
     excluded = excluded_keys(conn, item_id) if q.listings else set()
     cur = conn.execute(
-        "INSERT INTO valuations (item_id, source, low, median, high, n_listings, currency, via)"
-        " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-        (item_id, q.source, q.low, q.median, q.high, q.n_listings, q.currency, via),
+        "INSERT INTO valuations (item_id, source, low, median, high, n_listings, currency, via,"
+        " matched) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (item_id, q.source, q.low, q.median, q.high, q.n_listings, q.currency, via,
+         q.matched or None),
     )
     valuation_id = cur.lastrowid
     conn.executemany(
@@ -735,13 +768,17 @@ class Confidence(NamedTuple):
 
 def confidence(
     n: int | None, low: float | None, high: float | None, median: float | None,
-    noun: str = "listing",
+    noun: str = "listing", matched: str | None = None,
 ) -> Confidence | None:
-    """The cue beside a price, from how many listings it counted and how far apart they sit.
+    """The cue beside a price, from how many listings it counted, how far apart they
+    sit, and whether they were this edition.
 
     Four or fewer is thin whatever the spread. Twelve or more is solid when the
-    range (high minus low) is no wider than three quarters of the median; a wider
-    range caps the price at fair. None for a valuation that priced nothing.
+    range (high minus low; the middle half, from `QUARTILES_FROM` listings) is no
+    wider than three quarters of the median; a wider range caps the price at fair.
+    So does a price counted across every steelbook of the film (`matched` 'all'):
+    many listings of other editions say little about this one. None for a
+    valuation that priced nothing.
     """
     if not n or median is None:
         return None
@@ -749,6 +786,9 @@ def confidence(
     spread = (high - low) / median if median and high is not None and low is not None else 0
     if n <= 4:
         return Confidence(1, "Thin", f"Only {many}; one more or less moves it a lot.")
+    if matched == FILM_WIDE:
+        return Confidence(2, "Fair", f"{many}, but of every steelbook of the film, not "
+                                     "this edition alone.")
     if spread > 0.75:
         return Confidence(2, "Fair", f"{many}, spread wide from {low:,.0f} to {high:,.0f}.")
     if n >= 12:

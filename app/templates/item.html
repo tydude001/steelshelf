@@ -68,8 +68,9 @@
   {% if latest.high > latest.low %}
   <div>
     <div class="range"><i style="left: {{ ((latest.median - latest.low) / (latest.high - latest.low) * 100) | round(1) }}%"></i></div>
-    <div class="range-ends muted"><span>low {{ "%.2f" | format(latest.low) }}</span>
-      <span>high {{ "%.2f" | format(latest.high) }}</span></div>
+    {% set quartiles = latest.matched and latest.n_listings >= quartiles_from %}
+    <div class="range-ends muted"><span>{{ "middle half from" if quartiles else "low" }} {{ "%.2f" | format(latest.low) }}</span>
+      <span>{{ "to" if quartiles else "high" }} {{ "%.2f" | format(latest.high) }}</span></div>
   </div>
   {% endif %}
   {% if confidence %}

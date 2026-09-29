@@ -97,10 +97,16 @@ DATABASE_PATH=demo/steelshelf.db PHOTO_DIR=demo/photos REPRICE_ENABLED=false \
    re-counted from the rest as a new row, and that id stays out of every
    later fetch, stored flagged so the page still shows what was set aside.
    The item page leads with the price as **Worth about**, what was paid and
-   the gain beside it, the low/high range, and a three-block confidence cue
-   (`pricing.confidence`: thin at four listings or fewer, solid at twelve or
-   more close together, fair otherwise or when the range is wider than three
-   quarters of the median). Its history is a line once there are two prices.
+   the gain beside it, the range — the middle half (quartiles) from five
+   listings, so one stray $965 ask moves neither end, else low to high — and a
+   three-block confidence cue (`pricing.confidence`: thin at four listings or
+   fewer, solid at twelve or more close together, fair otherwise, when the
+   range is wider than three quarters of the median, or when no listing named
+   the edition and the price is the film's every steelbook). Each valuation
+   records how its listings were matched (`valuations.matched`: `upc`,
+   `judged`, `keywords`, `retailer+region`, `retailer`, `region`, `all`,
+   `typed`); `/review` lists the items priced film-wide. Its history is a line
+   once there are two prices.
    **Monthly re-price** (`reprice.py`): on the 25th at 03:00 local a background
    thread re-prices every item not priced since, oldest price first, through
    the source **Refresh price** uses; with SerpApi it reads the free Account

@@ -8,7 +8,7 @@ import sqlite3
 from dataclasses import dataclass, field
 
 from app import shelf
-from app.pricing import SOLD_SOURCES, confidence
+from app.pricing import FILM_WIDE, SOLD_SOURCES, confidence
 
 
 @dataclass(frozen=True)
@@ -54,11 +54,23 @@ class Certainty:
         return round(n / self.priced * 100, 1) if self.priced else 0.0
 
 
+def _get(it, key: str):
+    """A column that rows from before it existed may lack."""
+    return it[key] if key in it.keys() else None
+
+
+def film_wide(items: list[sqlite3.Row]) -> list[sqlite3.Row]:
+    """Items whose price was counted across every steelbook of their film, by title:
+    no listing named the edition, so it is the film's price, not this case's."""
+    return sorted((it for it in items if _get(it, "latest_matched") == FILM_WIDE),
+                  key=lambda it: shelf.sort_title(it["title"]))
+
+
 def certainty(items: list[sqlite3.Row]) -> Certainty:
     c = Certainty()
     for it in items:
         cue = confidence(it["latest_n"], it["latest_low"], it["latest_high"],
-                         it["latest_median"])
+                         it["latest_median"], matched=_get(it, "latest_matched"))
         if cue is None:
             c.unpriced += 1
             continue

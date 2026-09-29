@@ -18,6 +18,25 @@ first pass could not.</p>
 <p class="muted">Every item has a format and region.</p>
 {% endif %}
 
+<h2>Priced across the whole film</h2>
+{% if wide %}
+<p class="muted">No listing behind these prices named the edition, so each is the median
+of every steelbook of its film. Naming the retailer or label, the region, or the edition's
+own words (Mondo #041, fullslip, lenticular) on the edit page lets the next fetch narrow.</p>
+<ul>
+  {% for it in wide %}
+  <li>
+    <a href="/items/{{ it.id }}/edit"><strong>{{ it.title }}</strong></a>
+    <span class="muted small">— {{ "{:,.0f}".format(it.latest_median) }} {{ it.latest_currency }}
+      from {{ it.latest_n }} listing{{ "s" if it.latest_n != 1 }}{% if not it.retailer %}, no
+      retailer named{% endif %}</span>
+  </li>
+  {% endfor %}
+</ul>
+{% else %}
+<p class="muted">Every price was narrowed to its edition, or came before this was recorded.</p>
+{% endif %}
+
 <h2>Spines to check</h2>
 <p class="muted">{{ n_photo }} on the shelf from their spine photo.{% if checks %} These
 {{ checks | length }} show the front cover’s edge, or a slipcover, until you pick.{% endif %}</p>
