@@ -408,16 +408,16 @@ dd { margin: 0; }
               margin-bottom: 16px; }
 .stats-head h1 { margin: 0; }
 .stats { display: grid; gap: 16px; align-items: start; }
-.reprice { display: grid; gap: 10px; margin-bottom: 16px; }
+.reprice, .films { display: grid; gap: 10px; margin-bottom: 16px; }
 .reprice.stopped { border-color: var(--bad); }
 .reprice-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline;
                 gap: 4px 12px; }
-.reprice h2 { font-size: 18px; margin: 0; }
+.reprice h2, .films h2 { font-size: 18px; margin: 0; }
 .reprice .state { font-size: 13px; font-weight: 700; }
 .reprice .state.good { color: var(--teal); }
 .reprice .state.bad { color: var(--bad); }
 .reprice dl { margin: 0; font-size: 14px; }
-.reprice p, .reprice form { margin: 0; }
+.reprice p, .reprice form, .films p, .films form { margin: 0; }
 @media (min-width: 960px) { .stats { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 .stats h2 { font-size: 18px; margin: 0 0 12px; }
 .stats h3.k { font-size: 12px; font-weight: 600; color: var(--muted); letter-spacing: .02em;

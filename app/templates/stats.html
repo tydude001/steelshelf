@@ -83,7 +83,7 @@
 
 {% if films.on and items %}
 {% set f = films %}
-<section class="card" id="films">
+<section class="card films" id="films">
   <h2>Genre and director</h2>
   <p class="small">{{ f.matched }} matched on TMDB{% if f.none %} · {{ f.none }} with no match{% endif %}{% if f.by_hand %} · {{ f.by_hand }} set by hand{% endif %}{% if f.waiting %} · {{ f.waiting }} still to look up{% endif %}</p>
   {% if not f.waiting %}
