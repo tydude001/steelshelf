@@ -1,6 +1,7 @@
 """The monthly re-price: when it is due, what it prices, and how it stops."""
 
 import time
+from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -240,3 +241,58 @@ def test_run_the_rest_needs_auth_and_starts_a_run(admin, monkeypatch):
             break
         time.sleep(0.05)
     assert fake.asked == ["Alien"]
+
+
+# --- sold first -------------------------------------------------------------------------
+
+
+class FakeSold(Fake):
+    name = "soldcomps_sold"
+
+    def quote(self, item):
+        q = super().quote(item)
+        return replace(q, source="soldcomps_sold")
+
+
+def test_sold_first_for_the_most_valuable_within_the_budget(conn):
+    cheap = add(conn, "Cheap", "2026-08-01 00:00:00", median=10.0)
+    dear = add(conn, "Dear", "2026-08-01 00:00:00", median=600.0)
+    mid = add(conn, "Mid", "2026-08-01 00:00:00", median=50.0)
+    sold, asks = FakeSold({"Dear": 630.0, "Mid": None}), Fake()
+    run_id = reprice.run(conn, asks, "schedule", SINCE, wait=lambda s: None,
+                         sold=sold, sold_budget=2)
+    assert sorted(sold.asked) == ["Dear", "Mid"]  # the two most valuable
+    assert sorted(asks.asked) == ["Cheap", "Mid"]  # Mid found no sale: asks price it
+    newest = {r["item_id"]: r["source"] for r in conn.execute(
+        "SELECT item_id, source FROM valuations WHERE via = 'monthly'")}
+    assert newest == {dear: "soldcomps_sold", mid: "fake", cheap: "fake"}
+    assert reprice.last_run(conn)["sold_searches"] == 2
+    assert outcomes(conn, run_id) == {"Cheap": "priced", "Dear": "priced", "Mid": "priced"}
+    assert reprice.sold_spent(conn, SINCE) == 2
+
+
+def test_the_sold_budget_spans_the_cycle_and_a_quota_answer_stops_it(conn):
+    for t in "ABC":
+        add(conn, t, "2026-08-01 00:00:00")
+    conn.execute("INSERT INTO reprice_runs (trigger, planned, started_at, sold_searches)"
+                 " VALUES ('hand', 0, '2026-09-26 00:00:00', 79)")
+    sold = FakeSold()
+    reprice.run(conn, Fake(), "hand", SINCE, wait=lambda s: None, sold=sold, sold_budget=80)
+    assert len(sold.asked) == 1  # one left of 80
+    for t in "DEF":
+        add(conn, t, "2026-08-01 00:00:00")
+    quota = FakeSold({t: PricingError("SoldComps search failed: HTTP 429 quota_exceeded")
+                      for t in "DEF"})
+    asks = Fake()
+    reprice.run(conn, asks, "hand", "2026-09-26 00:00:01", wait=lambda s: None,
+                sold=quota, sold_budget=80)
+    assert len(quota.asked) == 1 and sorted(asks.asked) == ["D", "E", "F"]
+
+
+def test_the_scheduler_passes_the_sold_source_on(conn):
+    add(conn, "A")
+    path = conn.execute("PRAGMA database_list").fetchone()["file"]
+    sold = FakeSold()
+    s = reprice.Scheduler(path, lambda: (Fake(), None, (sold, 5)), 25, 3, 20,
+                          now=lambda: at(2026, 9, 26))
+    assert s.tick() is not None and sold.asked == ["A"]

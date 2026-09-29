@@ -40,6 +40,10 @@ class Settings(BaseSettings):
     reprice_day: int = 25
     reprice_hour: int = 3
     reprice_reserve: int = 20
+    # With SOLD_LOOKUP_ENABLED and a SOLDCOMPS_KEY, the run looks up sold prices first,
+    # most valuable items first, spending at most this many SoldComps requests a cycle
+    # (the free plan is 100 a month; the rest are left for the sold button). 0 = asks only.
+    reprice_sold_budget: int = 80
 
     admin_user: str = ""
     admin_password: str = ""

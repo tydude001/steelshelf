@@ -119,6 +119,20 @@ def searches_left(api_key: str, http: httpx.Client | None = None) -> int:
     return int(left)
 
 
+def sold_spent(conn: sqlite3.Connection, since: str) -> int:
+    """Sold lookups the runs of this cycle have spent."""
+    return conn.execute("SELECT coalesce(sum(sold_searches), 0) FROM reprice_runs"
+                        " WHERE started_at >= ?", (since,)).fetchone()[0]
+
+
+def most_valuable_first(conn: sqlite3.Connection, plan: list[int]) -> list[int]:
+    """The planned items by what they are worth, highest first, the unpriced last:
+    where a sold price moves the total most, and where an ask is least to be trusted."""
+    vals = db.valuations_by_item(conn)
+    worth = {i: current_worth(vals.get(i, [])) for i in plan}
+    return sorted(plan, key=lambda i: -(worth[i]["median"] if worth[i] else -1))
+
+
 def run(
     conn: sqlite3.Connection,
     source: PricingSource,
@@ -127,9 +141,16 @@ def run(
     account: Callable[[], int] | None = None,
     reserve: int = 20,
     wait: Callable[[float], None] = time.sleep,
+    sold: PricingSource | None = None,
+    sold_budget: int = 0,
 ) -> int | None:
     """Re-price the planned items and log the run; its id, or None when nothing was
-    run (a resume with no searches to spare yet, or SerpApi's count unreadable)."""
+    run (a resume with no searches to spare yet, or SerpApi's count unreadable).
+
+    With a `sold` source, the most valuable planned items are looked up sold first,
+    within what is left of `sold_budget` this cycle; an item whose lookup finds no
+    sale, or fails, is priced from asks as usual. `source` is the ask source, and its
+    searches are counted against `account`'s count, less `reserve`."""
     plan = planned(conn, since)
     left = None
     if account is not None:
@@ -139,6 +160,8 @@ def run(
             log.warning("re-price not started: %s", exc)
             return None
     allowed = len(plan) if left is None else max(0, left - reserve)
+    sold_left = max(0, sold_budget - sold_spent(conn, since)) if sold is not None else 0
+    first = set(most_valuable_first(conn, plan)[:sold_left])
     if trigger == "resume" and plan and allowed == 0:
         return None  # still waiting on the month's searches; no row, try tomorrow
     run_id = conn.execute(
@@ -147,15 +170,24 @@ def run(
     ).lastrowid
     conn.commit()
     counts = {"priced": 0, "no_listings": 0, "failed": 0}
-    stopped, fails_in_a_row, reached = None, 0, 0
+    stopped, fails_in_a_row, reached, spent, sold_used = None, 0, 0, 0, 0
     for n, item_id in enumerate(plan):
-        if n >= allowed:
-            stopped = RESERVE
-            break
-        outcome, detail = _one(conn, source, item_id, wait)
-        if outcome == QUOTA:
-            stopped = QUOTA
-            break
+        outcome = detail = None
+        if item_id in first and sold_used < sold_left:
+            outcome, detail, used = _sold(conn, sold, item_id)
+            sold_used += used
+            if outcome == QUOTA:
+                sold_left = 0  # the month's sold lookups are gone; asks carry on
+                outcome = None
+        if outcome is None:
+            if spent >= allowed:
+                stopped = RESERVE
+                break
+            outcome, detail, used = _one(conn, source, item_id, wait)
+            if outcome == QUOTA:
+                stopped = QUOTA
+                break
+            spent += used
         reached = n + 1
         counts[outcome] += 1
         fails_in_a_row = fails_in_a_row + 1 if outcome == "failed" else 0
@@ -171,18 +203,38 @@ def run(
     )
     conn.execute(
         "UPDATE reprice_runs SET finished_at = datetime('now'), priced = ?, no_listings = ?,"
-        " failed = ?, stopped = ? WHERE id = ?",
-        (counts["priced"], counts["no_listings"], counts["failed"], stopped, run_id),
+        " failed = ?, stopped = ?, sold_searches = ? WHERE id = ?",
+        (counts["priced"], counts["no_listings"], counts["failed"], stopped, sold_used, run_id),
     )
     conn.commit()
-    log.info("re-price run %d (%s): %d of %d priced, %d no listings, %d failed, stopped %s",
-             run_id, trigger, counts["priced"], len(plan), counts["no_listings"],
-             counts["failed"], stopped)
+    log.info("re-price run %d (%s): %d of %d priced, %d no listings, %d failed, "
+             "%d sold lookups, stopped %s", run_id, trigger, counts["priced"], len(plan),
+             counts["no_listings"], counts["failed"], sold_used, stopped)
     return run_id
 
 
-def _one(conn, source, item_id, wait) -> tuple[str, str | None]:
-    """('priced' | 'no_listings' | 'failed' | QUOTA, detail) for one item, tried twice."""
+def _sold(conn, source, item_id) -> tuple[str | None, str | None, int]:
+    """('priced', 'sold', searches) when a sold lookup priced the item; (None, why,
+    searches) when it found no sale or failed, so asks price it; QUOTA when the
+    vendor says the month's requests are spent. Tried once: a quota is small."""
+    try:
+        quote = fetch_quote(conn, item_id, source)
+    except PricingError as exc:
+        text = str(exc).lower()
+        if "quota" in text or "http 429" in text or OUT_OF_SEARCHES in text:
+            log.warning("sold lookups stopped for this run: %s", exc)
+            return QUOTA, None, 1
+        log.info("sold lookup of item %d failed, asks instead: %s", item_id, exc)
+        return None, None, 1
+    if not quote.n_listings:
+        return None, None, quote.searches
+    append_quote(conn, item_id, quote, VIA)
+    return "priced", "sold", quote.searches
+
+
+def _one(conn, source, item_id, wait) -> tuple[str, str | None, int]:
+    """('priced' | 'no_listings' | 'failed' | QUOTA, detail, searches spent) for one
+    item, tried twice."""
     try:
         try:
             quote = fetch_quote(conn, item_id, source)
@@ -193,12 +245,12 @@ def _one(conn, source, item_id, wait) -> tuple[str, str | None]:
             quote = fetch_quote(conn, item_id, source)
     except PricingError as exc:
         if OUT_OF_SEARCHES in str(exc).lower():
-            return QUOTA, str(exc)
-        return "failed", str(exc)[:200]
+            return QUOTA, str(exc), 0
+        return "failed", str(exc)[:200], 1
     if not quote.n_listings:
-        return "no_listings", None
+        return "no_listings", None, quote.searches
     append_quote(conn, item_id, quote, VIA)
-    return "priced", None
+    return "priced", None, quote.searches
 
 
 # --- what the pages show ----------------------------------------------------------
@@ -237,8 +289,9 @@ def run_days(conn: sqlite3.Connection) -> dict[str, str]:
 class Scheduler:
     """The thread that starts runs when they are due, and one started by hand.
 
-    `job` returns (source, account) — the pricing source and SerpApi's count reader
-    (None for a source with no quota) — or None when no source is set up, in which
+    `job` returns (source, account[, (sold source, sold budget)]) — the ask source,
+    SerpApi's count reader (None for a source with no quota), and the sold source to
+    try first with its per-cycle budget — or None when no source is set up, in which
     case nothing runs. One run at a time.
     """
 
@@ -281,9 +334,11 @@ class Scheduler:
                 trigger = trigger or due(conn, now, self.day, self.hour)
                 if trigger is None:
                     return None
-                source, account = job
+                source, account, *more = job
+                sold, budget = more[0] if more and more[0] else (None, 0)
                 since = _utc(cycle_start(now, self.day, self.hour))
-                return run(conn, source, trigger, since, account, self.reserve)
+                return run(conn, source, trigger, since, account, self.reserve,
+                           sold=sold, sold_budget=budget)
         finally:
             self.lock.release()
 

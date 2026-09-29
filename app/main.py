@@ -277,16 +277,27 @@ def get_pricing() -> PricingSource:
     return _pricing
 
 
+def monthly_sold():
+    """(SoldComps, its per-cycle budget) for the monthly run to look up sold prices
+    with first, or None: sold lookups off, no SoldComps key, or a zero budget.
+    SerpApi's sold search is not used monthly: it shares the quota the asks need."""
+    if (settings.sold_lookup_enabled and settings.soldcomps_key
+            and settings.reprice_sold_budget > 0):
+        return get_sold_pricing(), settings.reprice_sold_budget
+    return None
+
+
 def reprice_job():
-    """The monthly re-price's (source, SerpApi count reader): the source "Refresh
-    price" uses, and a quota to read only when that is SerpApi. None when switched
-    off or no source is set up (no eBay keyset, and SerpApi not enabled)."""
+    """The monthly re-price's (source, SerpApi count reader, sold): the source "Refresh
+    price" uses, a quota to read only when that is SerpApi, and `monthly_sold`. None
+    when switched off or no source is set up (no eBay keyset, and SerpApi not enabled)."""
     if not settings.reprice_enabled:
         return None
     if asks_via_serpapi():
-        return get_pricing(), lambda: reprice.searches_left(settings.serpapi_key)
+        return (get_pricing(), lambda: reprice.searches_left(settings.serpapi_key),
+                monthly_sold())
     if settings.ebay_client_id and settings.ebay_client_secret:
-        return get_pricing(), None
+        return get_pricing(), None, monthly_sold()
     return None
 
 
@@ -300,6 +311,9 @@ def reprice_status(conn, scheduler) -> dict:
         "enabled": settings.reprice_enabled,
         "day": settings.reprice_day, "hour": settings.reprice_hour,
         "reserve": settings.reprice_reserve,
+        "sold_budget": settings.reprice_sold_budget if monthly_sold() else 0,
+        "sold_spent": reprice.sold_spent(conn, reprice._utc(reprice.cycle_start(
+            now, settings.reprice_day, settings.reprice_hour))),
         "last": last,
         "missed": reprice.missed(conn, last),
         "due": reprice.due(conn, now, settings.reprice_day, settings.reprice_hour),

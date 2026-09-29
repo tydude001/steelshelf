@@ -707,7 +707,7 @@ class SoldComps(TitleSearched):
             key=str(result.get("itemId") or url or result.get("title", "")),
             condition=str(result.get("condition") or ""),
             url=url,
-            thumb=str(result.get("image") or result.get("imageUrl") or ""),
+            thumb=str(result.get("thumbnailUrl") or ""),
         )
 
 

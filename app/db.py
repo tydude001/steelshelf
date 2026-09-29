@@ -112,7 +112,8 @@ CREATE TABLE IF NOT EXISTS reprice_runs (
     no_listings   INTEGER NOT NULL DEFAULT 0,
     failed        INTEGER NOT NULL DEFAULT 0,
     searches_left INTEGER,          -- SerpApi's count at the start; NULL for another source
-    stopped       TEXT              -- why it stopped short; NULL = reached every item
+    stopped       TEXT,             -- why it stopped short; NULL = reached every item
+    sold_searches INTEGER NOT NULL DEFAULT 0  -- sold lookups it spent (SoldComps' quota)
 );
 
 CREATE TABLE IF NOT EXISTS reprice_items (
@@ -142,7 +143,8 @@ ADDED_COLUMNS = {"items": [("spine_color", "TEXT"), ("paid_price", "REAL"), ("pa
                            ("genre", "TEXT"), ("director", "TEXT"), ("tmdb_id", "INTEGER"),
                            ("year", "INTEGER"), ("edition_keywords", "TEXT"),
                            ("search_query", "TEXT")],
-                 "valuations": [("via", "TEXT"), ("matched", "TEXT")]}
+                 "valuations": [("via", "TEXT"), ("matched", "TEXT")],
+                 "reprice_runs": [("sold_searches", "INTEGER NOT NULL DEFAULT 0")]}
 
 
 def init_db(path: str) -> None:

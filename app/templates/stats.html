@@ -48,6 +48,11 @@
     <dt>Next run</dt>
     <dd>{% if r.due == "schedule" %}due now, within ten minutes{% else %}{{ r.next.day }} {{ r.next.strftime("%b %Y") }}{% endif %}</dd>
     {% endif %}
+    <dt>Sold first</dt>
+    <dd>{% if r.sold_budget %}The most valuable items are looked up sold on SoldComps first, up
+      to {{ r.sold_budget }} requests a cycle; {{ r.sold_spent }} used this cycle. An item with no
+      sale is priced from asks.{% else %}Off: asks only. Set <code>SOLDCOMPS_KEY</code> with
+      <code>SOLD_LOOKUP_ENABLED</code> to look up sold prices first.{% endif %}</dd>
     {% if last and last.searches_left is not none %}
     <dt>Searches</dt>
     <dd>{{ last.searches_left }} SerpApi searches were left when it started; it used about

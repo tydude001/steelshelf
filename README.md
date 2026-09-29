@@ -117,7 +117,16 @@ DATABASE_PATH=demo/steelshelf.db PHOTO_DIR=demo/photos REPRICE_ENABLED=false \
    allow. A price typed in by hand is never re-priced over. Each run and each
    item's outcome is logged (`reprice_runs`, `reprice_items`) for the status
    card on `/stats`, the item page's note, and a hollow dot on the shelf's
-   value chart for a run that stopped short. `REPRICE_*` in `.env` tunes it.
+   value chart for a run that stopped short. **Sold first:** with
+   `SOLD_LOOKUP_ENABLED` and a `SOLDCOMPS_KEY`, the run looks the most valuable
+   planned items up sold on SoldComps before asking for asks, spending at most
+   `REPRICE_SOLD_BUDGET` (80) SoldComps requests a cycle — SoldComps has no
+   usage API, so the runs count their own (`reprice_runs.sold_searches`) and the
+   rest of the free 100 stay for the sold button. An item with no sale, or whose
+   lookup fails, is priced from asks as before; a quota answer ends sold lookups
+   for the run, not the run. The free 100 cover a 72-case shelf once a month.
+   SerpApi's sold search is not used monthly, since it shares the asks' quota.
+   `REPRICE_*` in `.env` tunes it.
 5. **Browse.** The shelf sorts by newest, title, value, label, format,
    region, genre or director (`?sort=`, remembered in a cookie; `shelf.py`).
    The five grouping sorts give each group its own run of shelf with a brass
