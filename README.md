@@ -342,8 +342,9 @@ half a shelf names no retailer. With the judge on, every title search's
 listings go to Claude with the item's fields, its front photo, and up to 12
 listing pictures, and it answers per listing: the **same** edition, **another**
 steelbook of the film, or **not one** copy (a lot, an empty case, another film).
-A special edition's (fullslip, lenticular, numbered, a boutique label's) listing
-is the same only when its title or picture shows what makes it special.
+A special edition's (fullslip, lenticular, numbered, a boutique label's or art
+series, or any item with edition keywords) listing is the same only when its title
+or picture shows what makes it special.
 The same ones are the price when there are enough (one for a sold lookup, three
 for asks; `matched = 'judged'`); otherwise the words decide as before, the
 not-one listings dropped. It runs on the worker first (`POST /judge`, Claude
