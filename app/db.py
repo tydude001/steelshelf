@@ -54,6 +54,9 @@ CREATE TABLE IF NOT EXISTS items (
     genre       TEXT,               -- the main one: 'Science Fiction', 'Horror', ...
     director    TEXT,               -- co-directors joined with ' & '
     tmdb_id     INTEGER,            -- NULL not looked up | 0 no match | -1 by hand
+    year        INTEGER,            -- the film's release year: identified, TMDB, or typed
+    edition_keywords TEXT,          -- words a listing names this edition by, comma-separated
+    search_query TEXT,              -- the eBay search that finds this edition; NULL = title
     created_at  TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_items_upc ON items(upc);
@@ -136,7 +139,9 @@ def connect(path: str) -> sqlite3.Connection:
 ADDED_COLUMNS = {"items": [("spine_color", "TEXT"), ("paid_price", "REAL"), ("paid_on", "TEXT"),
                            ("spine_box", "TEXT"), ("spine_ratio", "REAL"),
                            ("spine_reads", "INTEGER"), ("spine_choice", "TEXT"),
-                           ("genre", "TEXT"), ("director", "TEXT"), ("tmdb_id", "INTEGER")],
+                           ("genre", "TEXT"), ("director", "TEXT"), ("tmdb_id", "INTEGER"),
+                           ("year", "INTEGER"), ("edition_keywords", "TEXT"),
+                           ("search_query", "TEXT")],
                  "valuations": [("via", "TEXT"), ("matched", "TEXT")]}
 
 
@@ -159,7 +164,8 @@ def count_items(conn: sqlite3.Connection) -> int:
 
 
 ITEM_FIELDS = ("title", "format", "edition", "retailer", "region", "upc", "condition", "notes",
-               "paid_price", "paid_on", "genre", "director")
+               "paid_price", "paid_on", "genre", "director", "year", "edition_keywords",
+               "search_query")
 
 
 def insert_item(conn: sqlite3.Connection, fields: dict[str, str | None]) -> int:
@@ -237,22 +243,35 @@ def items_missing_spine_box(conn: sqlite3.Connection) -> list[sqlite3.Row]:
 def items_missing_film(conn: sqlite3.Connection) -> list[sqlite3.Row]:
     """(id, title) of each item never looked up on TMDB, oldest first."""
     return conn.execute(
-        "SELECT id, title FROM items WHERE tmdb_id IS NULL ORDER BY created_at, id"
+        "SELECT id, title, year FROM items WHERE tmdb_id IS NULL ORDER BY created_at, id"
     ).fetchall()
 
 
 def set_film(conn: sqlite3.Connection, item_id: int, film) -> None:
-    """Record a TMDB lookup (an `app.film.Film`, or None for no match); genre and
-    director are written only where blank, so a typed one stands."""
+    """Record a TMDB lookup (an `app.film.Film`, or None for no match); genre,
+    director and year are written only where blank, so a typed or identified one stands."""
     conn.execute(
         """
         UPDATE items SET tmdb_id = ?,
                genre = coalesce(nullif(genre, ''), ?),
-               director = coalesce(nullif(director, ''), ?)
+               director = coalesce(nullif(director, ''), ?),
+               year = coalesce(year, ?)
         WHERE id = ?
         """,
-        (film.tmdb_id, film.genre, film.director, item_id) if film else (0, None, None, item_id),
+        (film.tmdb_id, film.genre, film.director, film.year, item_id) if film
+        else (0, None, None, None, item_id),
     )
+
+
+def items_missing_year(conn: sqlite3.Connection) -> list[sqlite3.Row]:
+    """(id, tmdb_id) of each item matched on TMDB before the year was kept, and without one."""
+    return conn.execute(
+        "SELECT id, tmdb_id FROM items WHERE tmdb_id > 0 AND year IS NULL ORDER BY id"
+    ).fetchall()
+
+
+def set_year(conn: sqlite3.Connection, item_id: int, year: int | None) -> None:
+    conn.execute("UPDATE items SET year = coalesce(year, ?) WHERE id = ?", (year, item_id))
 
 
 HAND_SET = -1  # tmdb_id of an item whose genre and director were typed

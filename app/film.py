@@ -38,15 +38,19 @@ def same_title(a: str, b: str) -> bool:
     return _NOT_WORD.sub("", (a or "").casefold()) == _NOT_WORD.sub("", (b or "").casefold())
 
 
-def pick(title: str, results: list[dict]) -> dict | None:
+def pick(title: str, results: list[dict], year: int | None = None) -> dict | None:
     """The result to use: the most popular one titled exactly `title`, else TMDB's top.
 
     TMDB ranks a new release first, so "Toy Story" comes back as Toy Story 5 and
     "Spider-Man" as its latest sequel; the exact title finds the film on the case.
-    A remake with the same title stays ambiguous, and is corrected on the edit form.
+    A remake with the same title is told apart by `year` when the item has one
+    (identified from the case, or typed); without it, it is corrected on the edit form.
     """
     exact = [r for r in results
              if same_title(title, r.get("title")) or same_title(title, r.get("original_title"))]
+    if year is not None:
+        dated = [r for r in exact if release_year(r) == year]
+        exact = dated or exact
     if exact:
         return max(exact, key=lambda r: r.get("popularity") or 0)
     return results[0] if results else None
@@ -61,10 +65,17 @@ class Film:
     tmdb_id: int
     genre: str | None
     director: str | None
+    year: int | None = None  # of release, which pricing checks a listing's year against
+
+
+def release_year(movie: dict) -> int | None:
+    """'1979-05-25' → 1979; None when TMDB has no date."""
+    date = str(movie.get("release_date") or "")
+    return int(date[:4]) if date[:4].isdigit() else None
 
 
 class FilmSource(Protocol):
-    def lookup(self, title: str) -> Film | None: ...
+    def lookup(self, title: str, year: int | None = None) -> Film | None: ...
 
 
 class Tmdb:
@@ -75,10 +86,10 @@ class Tmdb:
         self.key = key
         self.http = http or httpx.Client(timeout=15.0)
 
-    def lookup(self, title: str) -> Film | None:
-        """The picked match's main genre and director(s); None when nothing matches."""
+    def lookup(self, title: str, year: int | None = None) -> Film | None:
+        """The picked match's main genre, director(s) and year; None when nothing matches."""
         results = self._get("/search/movie", {"query": title, "include_adult": "false"})
-        match = pick(title, results.get("results") or [])
+        match = pick(title, results.get("results") or [], year)
         if match is None:
             return None
         movie = self._get(f"/movie/{match['id']}", {"append_to_response": "credits"})
@@ -88,7 +99,11 @@ class Tmdb:
         directors = dict.fromkeys(c["name"] for c in crew
                                   if c.get("job") == "Director" and c.get("name"))
         return Film(int(movie["id"]), genres[0] if genres else None,
-                    " & ".join(directors) or None)
+                    " & ".join(directors) or None, release_year(movie))
+
+    def year(self, tmdb_id: int) -> int | None:
+        """A matched film's release year, for items matched before it was kept."""
+        return release_year(self._get(f"/movie/{tmdb_id}", {}))
 
     def _get(self, path: str, params: dict) -> dict:
         if not self.key:
@@ -116,7 +131,8 @@ def fill_items(conn: sqlite3.Connection, source: FilmSource) -> int:
     matched = 0
     for it in db.items_missing_film(conn):
         try:
-            film = source.lookup(it["title"])
+            film = (source.lookup(it["title"], it["year"]) if it["year"]
+                    else source.lookup(it["title"]))
         except FilmError as exc:
             log.warning("film lookup stopped at item %d: %s", it["id"], exc)
             break
@@ -124,3 +140,19 @@ def fill_items(conn: sqlite3.Connection, source: FilmSource) -> int:
         conn.commit()
         matched += film is not None
     return matched
+
+
+def fill_years(conn: sqlite3.Connection, source) -> int:
+    """The release year of every item TMDB matched before years were kept; how many.
+    Stops at the first failed request, like `fill_items`."""
+    filled = 0
+    for it in db.items_missing_year(conn):
+        try:
+            year = source.year(it["tmdb_id"])
+        except FilmError as exc:
+            log.warning("year lookup stopped at item %d: %s", it["id"], exc)
+            break
+        db.set_year(conn, it["id"], year)
+        conn.commit()
+        filled += year is not None
+    return filled

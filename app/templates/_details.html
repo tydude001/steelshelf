@@ -15,9 +15,17 @@
                placeholder="{{ 'from TMDB' if tmdb_on() else '' }}">
       </div>
     </div>
+    <label for="year">Year</label>
+    <input id="year" name="year" inputmode="numeric" pattern="[0-9]{4}" autocomplete="off"
+           value="{{ values.year or '' }}"
+           placeholder="{{ 'from TMDB' if tmdb_on() else 'the film’s' }}">
     <label for="upc">UPC</label>
     <input id="upc" name="upc" inputmode="numeric" pattern="[0-9]*"
            value="{{ values.upc or '' }}">
+    <label for="search_query">eBay search</label>
+    <input id="search_query" name="search_query" autocomplete="off"
+           value="{{ values.search_query or '' }}"
+           placeholder="blank: the title, steelbook, and 4K">
     <label for="format">Format</label>
     <input id="format" name="format" list="formats" value="{{ values.format or '' }}">
     <datalist id="formats">
@@ -26,6 +34,10 @@
     </datalist>
     <label for="edition">Edition</label>
     <input id="edition" name="edition" value="{{ values.edition or ('' if editing else 'Steelbook') }}">
+    <label for="edition_keywords">Edition keywords</label>
+    <input id="edition_keywords" name="edition_keywords" autocomplete="off"
+           value="{{ values.edition_keywords or '' }}"
+           placeholder="words a listing names it by: Manta Lab E097, fullslip">
     <label for="retailer">Retailer exclusive</label>
     <input id="retailer" name="retailer" list="retailers" value="{{ values.retailer or '' }}">
     <datalist id="retailers">

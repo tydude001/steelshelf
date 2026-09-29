@@ -302,6 +302,21 @@ others). Only when it finds nothing is the title searched, so such an item can
 spend two of the month's searches; `Quote.searches` counts them for the
 monthly re-price.
 
+**The edition's own words.** Identify also returns the film's release **year**,
+the **edition keywords** a seller would title a listing with ("Manta Lab,
+E097", "Mondo #041", "fullslip"), and, for an edition a plain title search
+buries, its own **eBay search**; all three are on the add and edit forms.
+Listings naming a keyword phrase (its words together and in order) are the
+first narrowing tier, ahead of retailer and region (`matched = 'keywords'`);
+with no keywords, the specific parts of the edition stand in for them —
+"Steelbook (Mondo #041, #710/1000)" gives "Mondo #041", never a copy's own
+number. The item's search runs before the title search, which runs only if it
+finds nothing. The year rejects a remake that shares the title: a listing with a
+year right after the title must be within one of the film's ("The Thing
+(2011)" is not the 1982 case). TMDB fills the year where it is blank, picks the
+remake by it when the item has one, and at startup fills it for items matched
+before it was kept.
+
 **Sold lookups through SoldComps** (`source = 'soldcomps_sold'`), added
 2026-09-29 when SerpApi's sold search returned 503 for every query while its
 unfiltered searches worked. It is the same kind of scrape, so it sits behind the

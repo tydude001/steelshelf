@@ -36,7 +36,8 @@ MAX_EDGE = 2576
 
 FORMATS = ("4K UHD", "4K + Blu-ray", "Blu-ray", "DVD")
 CONDITIONS = ("sealed", "opened", "dented", "scratched")
-FIELDS = ("title", "format", "edition", "retailer", "region", "upc", "condition")
+FIELDS = ("title", "format", "edition", "retailer", "region", "upc", "condition", "year",
+          "edition_keywords", "search_query")
 
 # Anthropic's server-side web search: $10 per 1,000 searches plus the results as
 # input tokens. Capped per identify; a search past the cap comes back as an error
@@ -135,6 +136,18 @@ Digits only, and only a 12- or 13-digit barcode; any other printed code goes in 
 edition.
 - condition: one of {", ".join(CONDITIONS)} — "sealed" if factory shrink-wrap is \
 visible, otherwise what the case shows.
+- year: the film's original release year, four digits — not the steelbook's. It \
+tells the film from a remake of the same title when the case is priced.
+- edition_keywords: comma-separated words an eBay seller would put in a listing \
+title to name this edition and no other steelbook of the same film: the label and \
+its release code ("Manta Lab, E097"), a series number ("Mondo #041"), the packaging \
+("fullslip", "double lenticular", "box set"). Not the title, the format, \
+"steelbook", the retailer (it has its own field), or a copy's own number \
+("#710/1000"). Empty for a plain retailer release.
+- search_query: the eBay search that finds this edition's listings — the title, \
+"steelbook", and the one or two words that single the edition out, e.g. \
+"La La Land steelbook Manta Lab". Empty when the title and "steelbook" already find \
+it: a narrower search that finds nothing costs a second one.
 - doubts: one short sentence per field you filled but are not sure of, naming \
 the field, and one for any printed code or marking you read but could not place. \
 Empty if you are sure of everything you filled."""
@@ -156,6 +169,9 @@ SCHEMA = {
         "region": {"type": "string"},
         "upc": {"type": "string"},
         "condition": {"type": "string", "enum": ["", *CONDITIONS]},
+        "year": {"type": "string"},
+        "edition_keywords": {"type": "string"},
+        "search_query": {"type": "string"},
         "doubts": {"type": "array", "items": {"type": "string"}},
     },
     "required": [*FIELDS, "doubts"],
@@ -327,6 +343,13 @@ def parse(raw: dict, boxed: bool = False) -> Identification:
         doubts.insert(0, f"upc: read {upc}, which fails its check digit — left blank")
         upc = ""
     values["upc"] = upc or None
+    year = values["year"]
+    if year is not None:
+        if year.isdigit() and 1880 <= int(year) <= 2100:
+            values["year"] = int(year)
+        else:
+            doubts.append(f"year: read {year!r}, not a year — left blank")
+            values["year"] = None
     if boxed and not BOXED_WORDS.search(values["edition"] or ""):
         values["edition"] = f"{values['edition'] or 'Steelbook'} (Box set)"
     return Identification(values, doubts)

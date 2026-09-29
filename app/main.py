@@ -199,8 +199,11 @@ def fill_films() -> None:
         return
     with db.connect(settings.database_path) as conn:
         matched = film.fill_items(conn, source)
+        years = film.fill_years(conn, source) if hasattr(source, "year") else 0
     if matched:
         log.info("film lookup: %d matched on TMDB", matched)
+    if years:
+        log.info("film lookup: %d release years filled", years)
 
 
 # One lookup at a time: a save during the startup backfill should not ask twice.
@@ -522,14 +525,15 @@ async def _read_uploads(files) -> tuple[list[tuple[str, str, bytes]], list[str]]
 
 def _item_values(
     title, format, edition, retailer, region, upc, condition, notes, paid_price="", paid_on="",
-    genre="", director="",
+    genre="", director="", year="", edition_keywords="", search_query="",
 ) -> dict:
     return {
         "title": _clean(title), "format": _clean(format), "edition": _clean(edition),
         "retailer": _clean(retailer), "region": _clean(region), "upc": _clean(upc),
         "condition": _clean(condition), "notes": _clean(notes),
         "paid_price": _clean(paid_price), "paid_on": _clean(paid_on),
-        "genre": _clean(genre), "director": _clean(director),
+        "genre": _clean(genre), "director": _clean(director), "year": _clean(year),
+        "edition_keywords": _clean(edition_keywords), "search_query": _clean(search_query),
     }
 
 
@@ -540,6 +544,12 @@ def _item_errors(values: dict) -> list[str]:
         errors.append("title is required")
     if values["upc"] and not values["upc"].isdigit():
         errors.append("UPC is digits only")
+    year = values["year"]
+    if year is not None:
+        if str(year).isdigit() and 1880 <= int(year) <= 2100:
+            values["year"] = int(year)
+        else:
+            errors.append("year is four digits, like 1979")
     paid = values["paid_price"]
     if paid is not None:
         try:
@@ -609,6 +619,9 @@ async def create_item(
     paid_on: str = Form(""),
     genre: str = Form(""),
     director: str = Form(""),
+    year: str = Form(""),
+    edition_keywords: str = Form(""),
+    search_query: str = Form(""),
     draft: str = Form(""),
     front: UploadFile | None = File(None),
     spine: UploadFile | None = File(None),
@@ -616,7 +629,8 @@ async def create_item(
     other: UploadFile | None = File(None),
 ):
     values = _item_values(title, format, edition, retailer, region, upc, condition, notes,
-                          paid_price, paid_on, genre, director)
+                          paid_price, paid_on, genre, director, year, edition_keywords,
+                          search_query)
     errors = _item_errors(values)
 
     # Validate every upload before anything touches disk or the database.
@@ -837,9 +851,13 @@ def update_item(
     paid_on: str = Form(""),
     genre: str = Form(""),
     director: str = Form(""),
+    year: str = Form(""),
+    edition_keywords: str = Form(""),
+    search_query: str = Form(""),
 ):
     values = _item_values(title, format, edition, retailer, region, upc, condition, notes,
-                          paid_price, paid_on, genre, director)
+                          paid_price, paid_on, genre, director, year, edition_keywords,
+                          search_query)
     errors = _item_errors(values)
     with db.connect(settings.database_path) as conn:
         item = db.get_item(conn, item_id)

@@ -241,12 +241,14 @@ def _tokens(text: str) -> list[re.Match]:
     return list(re.finditer(r"[a-z0-9]+", text.lower().replace("'", "")))
 
 
-def title_match(listing_title: str, title: str) -> bool:
+def title_match(listing_title: str, title: str, year: int | None = None) -> bool:
     """Does the listing name this film, and not a sequel or another film sharing its words?
 
     The title's words must appear together and in order ("The Thing" also as "Thing,
     The"), then be followed by nothing, a closing mark, a year, or a word from
     `_AFTER_TITLE`. "and" is dropped from both, so "&" and "and" read the same.
+    With the film's `year`, a year right after the title must be within one of it:
+    "The Thing (2011)" is the remake, not the 1982 film.
     """
     want = [m.group() for m in _tokens(title) if m.group() != "and"]
     if not want:
@@ -264,9 +266,16 @@ def title_match(listing_title: str, title: str) -> bool:
                 return True
             gap = text[toks[i + n - 1].end():toks[i + n].start()]
             nxt = words[i + n]
+            if year and _YEAR.fullmatch(nxt) and abs(int(nxt) - year) > 1:
+                continue  # the same title, another film's year
             if _TITLE_END & set(gap) or nxt in _AFTER_TITLE or _YEAR.fullmatch(nxt):
                 return True
     return False
+
+
+def _col(item, key: str):
+    """An item column that a row from before it existed may lack."""
+    return item[key] if key in item.keys() else None
 
 
 def keyword_match(listing_title: str, item: sqlite3.Row) -> bool:
@@ -277,7 +286,7 @@ def keyword_match(listing_title: str, item: sqlite3.Row) -> bool:
     """
     if not _STEELBOOK.search(listing_title) or _NOT_ONE_COPY.search(listing_title):
         return False
-    if not title_match(listing_title, item["title"]):
+    if not title_match(listing_title, item["title"], _col(item, "year")):
         return False
     fmt = (item["format"] or "").lower()
     if "4k" in fmt:
@@ -303,9 +312,7 @@ class EbayKeyword(EbayActive):
     def quote(self, item: sqlite3.Row) -> Quote:
         if (item["upc"] or "").strip():
             return super().quote(item)
-        q = f"{item['title']} steelbook"
-        if "4k" in (item["format"] or "").lower():
-            q += " 4K"
+        q = (_col(item, "search_query") or "").strip() or search_terms(item)
         summaries = self._search({"q": q, "category_ids": self.CATEGORY})
         kept = [s for s in summaries if keyword_match(s.get("title", ""), item)]
         log.info("keyword %r: kept %d of %d listings", q, len(kept), len(summaries))
@@ -353,17 +360,49 @@ def region_match(listing_title: str, item: sqlite3.Row) -> bool:
 
 FILM_WIDE = "all"  # a quote counted across every steelbook of the film
 
+# Parts of an edition that name no edition in particular, or one copy of it.
+_GENERIC_EDITION = re.compile(
+    r"^(steel\s?book|limited( edition)?|numbered|special edition|collector'?s edition|"
+    r"exclusive|cat\..*|#?\d+\s*/\s*\d+)$", re.I)
+
+
+def edition_terms(item) -> list[str]:
+    """The phrases a listing would name this edition by: the item's edition keywords,
+    or with none typed or identified, the specific parts of its edition — "Steelbook
+    (Mondo #041, fullslip)" gives "Mondo #041" and "fullslip"."""
+    typed = _col(item, "edition_keywords")
+    if typed:
+        parts = typed.split(",")
+    else:
+        inner = re.findall(r"\(([^)]*)\)", item["edition"] or "")
+        parts = [p for group in inner for p in group.split(",")]
+    return [p.strip() for p in parts if p.strip() and not _GENERIC_EDITION.match(p.strip())]
+
+
+def keywords_match(listing_title: str, item) -> bool:
+    """Does the listing name one of the item's edition phrases, its words together and
+    in order? "Mondo #041" takes "MONDO 041", not a Mondo with another number."""
+    words = [m.group() for m in _tokens(listing_title)]
+    for phrase in edition_terms(item):
+        want = [m.group() for m in _tokens(phrase)]
+        n = len(want)
+        if n and any(words[i:i + n] == want for i in range(len(words) - n + 1)):
+            return True
+    return False
+
 
 def prefer_edition_sales(sales: list, item: sqlite3.Row, minimum: int = 3) -> tuple[list, str]:
     """Narrow sales (anything (title, price, …)-shaped) to the item's own edition when
     enough of them say so.
 
     One film has several steelbooks and a title search takes them all. Sales that
-    name the item's retailer and region, then its retailer, then its region, are
-    tried in turn; the first set of at least `minimum` wins. Too few anywhere and
-    every sale counts. Returns the sales kept and which set they are, for the log.
+    name the item's edition keywords (`edition_terms`), then its retailer and region,
+    then its retailer, then its region, are tried in turn; the first set of at least
+    `minimum` wins. Too few anywhere and every sale counts. Returns the sales kept
+    and which set they are.
     """
     tiers = [
+        ("keywords", lambda t: keywords_match(t, item)),
         ("retailer+region",
          lambda t: retailer_match(t, item) and region_match(t, item)),
         ("retailer", lambda t: retailer_match(t, item)),
@@ -444,7 +483,8 @@ _EBAY_ITEM = re.compile(r"/itm/(?:[^/]+/)?(\d{9,})")
 def upc_match(listing_title: str, item: sqlite3.Row) -> bool:
     """Is a listing a UPC search found one copy of this item? The UPC names the product;
     the title only guards against eBay padding a thin search with other films."""
-    return not _NOT_ONE_COPY.search(listing_title) and title_match(listing_title, item["title"])
+    return not _NOT_ONE_COPY.search(listing_title) and title_match(
+        listing_title, item["title"], _col(item, "year"))
 
 
 def by_condition(sales: list[Listing], item: sqlite3.Row, name: str,
@@ -468,7 +508,8 @@ class TitleSearched:
 
     An item with a UPC is searched by it first: the UPC is the exact product, so
     what it finds needs no narrowing to the edition (`matched` 'upc'). When it
-    finds nothing, or the item has none, the title is searched (`search_terms`),
+    finds nothing, or the item has none, the item's own `search_query` is (when it
+    has one, from identify or the edit form), then the title (`search_terms`),
     filtered by `keyword_match`, then narrowed to the item's edition by
     `prefer_edition_sales` when enough listings name it. Either way, asks narrow
     to the item's condition by `by_condition`, sold lookups by `prefer_condition`.
@@ -512,6 +553,10 @@ class TitleSearched:
         if upc:
             sales, searches = self._found(upc, item, upc_match), 1
             matched = "upc" if sales else ""
+        own = (_col(item, "search_query") or "").strip()
+        if not sales and own:
+            sales = self._found(own, item, keyword_match)
+            searches += 1
         if not sales:
             sales = self._found(search_terms(item), item, keyword_match)
             searches += 1
