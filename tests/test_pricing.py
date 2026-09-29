@@ -478,11 +478,21 @@ def test_opened_item_with_too_few_used_takes_every_listing(conn):
     assert (q.source, q.n_listings) == ("serpapi_active", 3)
 
 
-def test_sold_never_narrows_by_condition(conn):
+# Until 2026-09-29 sold never narrowed by condition; it now matches the copy both ways.
+def test_sold_narrows_to_the_items_condition(conn):
     results = [listed(100, "Brand New"), listed(60, "Pre-Owned"), listed(70, "Pre-Owned"),
                listed(80, "Pre-Owned")]
     q = serp({"organic_results": results}).quote(opened_row(conn, "opened"))
-    assert (q.source, q.n_listings) == ("serpapi_sold", 4)
+    assert (q.source, q.median, q.n_listings) == ("serpapi_sold", 70.0, 3)
+    q = serp({"organic_results": results}).quote(opened_row(conn, "sealed"))
+    assert (q.median, q.n_listings) == (100.0, 1)
+
+
+def test_sold_keeps_every_condition_when_none_fits_or_the_item_has_none(conn):
+    results = [listed(100, "Brand New"), listed(120, "New (Other)")]
+    assert serp({"organic_results": results}).quote(opened_row(conn, "opened")).n_listings == 2
+    blank = [listed(100, "Brand New"), listed(60, "Pre-Owned")]
+    assert serp({"organic_results": blank}).quote(item_row(conn, fmt="4K UHD")).n_listings == 2
 
 
 # --- SoldComps sold lookups ---------------------------------------------------
@@ -578,3 +588,17 @@ def test_asks_still_need_three_sales_naming_the_edition(conn):
                 {**listed(600, "Brand New"), "title": "Alien 4K Steelbook Manta Lab"},
                 {**listed(650, "Brand New"), "title": "Alien 4K Steelbook Manta Lab"}]).quote(item)
     assert q.n_listings == 4
+
+
+def test_soldcomps_narrows_to_the_edition_then_the_condition(conn):
+    # La La Land again: of its two Manta Lab sales, one was sealed and the owner's is opened.
+    cur = conn.execute("INSERT INTO items (title, format, retailer, condition)"
+                       " VALUES ('Alien', '4K UHD', 'Manta Lab', 'opened')")
+    item = conn.execute("SELECT * FROM items WHERE id = ?", (cur.lastrowid,)).fetchone()
+    q = soldcomps({"items": [
+        comp("Alien 4K Steelbook Best Buy", "30.00", item_id="1", condition="Pre-Owned"),
+        comp("Alien 4K Steelbook Manta Lab #54/600", "629.99", item_id="2",
+             condition="Pre-Owned"),
+        comp("[MANTA LAB] Alien 4K Steelbook Special Box", "699.95", item_id="3"),
+    ]}).quote(item)
+    assert (q.median, q.n_listings) == (629.99, 1)

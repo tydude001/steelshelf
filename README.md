@@ -268,7 +268,11 @@ and region, then retailer, then region, so one film's other steelbooks don't
 set the median. An ask narrows when at least three listings name the edition; a
 sold lookup narrows on one, since a boutique edition may sell only once or twice
 in eBay's 90 days, and on 2026-09-29 La La Land's Manta Lab was priced at $70 from
-twenty Best Buy sales while its own two went for $630 and $700. US never narrows: on ebay.com it is
+twenty Best Buy sales while its own two went for $630 and $700. A sold lookup
+then narrows to copies like the item's, used for an opened one and new for a
+sealed one, when any such sold; when none did it counts them all, and the item
+page says the price includes the other kind (asks do this differently, below).
+US never narrows: on ebay.com it is
 the default and goes unsaid. With no eBay keyset, the same switch also sends
 "Fetch eBay asks" through SerpApi's current listings (`serpapi_active`, Buy It
 Now and best-offer only; auctions dropped), filtered the same way. An opened

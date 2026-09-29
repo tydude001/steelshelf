@@ -94,6 +94,7 @@ from app.pricing import (
     SerpApiSold,
     SoldComps,
     confidence,
+    fits_condition,
     is_opened,
     parse_prices,
     record_sold,
@@ -683,6 +684,7 @@ def item_page(request: Request, item_id: int, error: str | None = None):
             "gain": _gain(item, shown),
             "latest": shown,
             "sold": bool(shown) and shown["source"] in SOLD_SOURCES,
+            "sold_fit": _sold_fit(item, shown, listings),
             "confidence": shown and confidence(
                 shown["n_listings"], shown["low"], shown["high"], shown["median"],
                 "sale" if shown["source"] in SOLD_SOURCES else "listing"),
@@ -690,6 +692,18 @@ def item_page(request: Request, item_id: int, error: str | None = None):
                                    if v["median"] is not None]),
         }
     return TEMPLATES.TemplateResponse(request, "item.html", ctx)
+
+
+def _sold_fit(item, latest, listings) -> bool | None:
+    """Were the sales counted in a sold price all copies like the item (used for an
+    opened one, new for a sealed one)? None for an ask, a price typed in, or an item
+    with no condition, where the page says nothing about it."""
+    if not latest or latest["source"] not in SOLD_SOURCES:
+        return None
+    fits = [fits_condition(item, ls["condition"]) for ls in listings if not ls["excluded"]]
+    if not fits or None in fits:
+        return None
+    return all(fits)
 
 
 def _gain(item, latest) -> float | None:

@@ -7,7 +7,7 @@ import pytest
 from app import db
 from app import settings as settings_module
 from app.main import app, get_pricing, get_sold_pricing
-from app.pricing import PricingError, Quote
+from app.pricing import Listing, PricingError, Quote, from_listings
 
 from tests.conftest import AUTH
 
@@ -409,3 +409,34 @@ def test_price_buttons_say_they_are_working(admin, monkeypatch):
     page = admin.get(post_item(admin).headers["location"]).text
     assert 'data-wait="Fetching prices…"' in page
     assert 'data-wait="Searching eBay sold listings…"' in page
+
+
+class StubSoldOf:
+    """A SoldComps quote whose sales were in these conditions."""
+
+    name = "soldcomps_sold"
+
+    def __init__(self, *conditions):
+        self.conditions = conditions
+
+    def quote(self, item):
+        sales = [Listing(f"Alien Steelbook {i}", 40.0 + i, str(i), c)
+                 for i, c in enumerate(self.conditions)]
+        return from_listings("soldcomps_sold", sales, "USD")
+
+
+@pytest.mark.parametrize("condition, sales, says", [
+    ("opened", ("Pre-Owned", "Used"), "Sold prices of opened copies,"),
+    ("sealed", ("Brand New",), "Sold prices of sealed copies,"),
+    ("opened", ("Brand New", "Pre-Owned"), "Includes sealed copies"),
+    ("sealed", ("Pre-Owned",), "Includes opened copies"),
+])
+def test_sold_price_says_whose_copies_sold(admin, monkeypatch, condition, sales, says):
+    app.dependency_overrides[get_sold_pricing] = lambda: StubSoldOf(*sales)
+    monkeypatch.setattr(settings_module.settings, "sold_lookup_enabled", True)
+    try:
+        loc = post_item(admin, data={"title": "Alien", "condition": condition}).headers["location"]
+        admin.post(f"{loc}/sold/lookup", auth=AUTH)
+        assert says in admin.get(loc).text
+    finally:
+        app.dependency_overrides.pop(get_sold_pricing, None)

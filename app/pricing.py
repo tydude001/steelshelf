@@ -363,9 +363,37 @@ def is_opened(item: sqlite3.Row) -> bool:
     return bool(condition) and "sealed" not in condition and "new" not in condition
 
 
+def condition_used(condition: str) -> bool:
+    """Is a listing's eBay condition a used copy? "New (Other)" is unused, so not."""
+    return (condition or "").strip().lower().startswith(("pre-owned", "used"))
+
+
+def condition_new(condition: str) -> bool:
+    """Is a listing's eBay condition an unused copy: "Brand New", "New", "New (Other)"?"""
+    return (condition or "").strip().lower().startswith(("new", "brand new"))
+
+
 def listing_used(result: dict) -> bool:
-    """Is a SerpApi eBay result a used copy? "New (Other)" is unused, so not."""
-    return str(result.get("condition", "")).lower().startswith(("pre-owned", "used"))
+    """Is a SerpApi eBay result a used copy?"""
+    return condition_used(str(result.get("condition", "")))
+
+
+def fits_condition(item: sqlite3.Row, condition: str) -> bool | None:
+    """Is a sale of this condition a copy like the item's: used for an opened one, new
+    for a sealed one? None when the item's condition is blank, so nothing can fit."""
+    if not (item["condition"] or "").strip():
+        return None
+    return condition_used(condition) if is_opened(item) else condition_new(condition)
+
+
+def prefer_condition(sales: list[Listing], item: sqlite3.Row) -> tuple[list[Listing], str]:
+    """Sold sales narrowed to copies like the item's, when any sold; otherwise all of them.
+
+    Run after `prefer_edition_sales`: the edition matters more than the condition.
+    The page reads the conditions back off the stored listings to say which it got.
+    """
+    fits = [s for s in sales if fits_condition(item, s.condition)]
+    return (fits, "condition") if fits else (list(sales), "any condition")
 
 
 def search_terms(item: sqlite3.Row) -> str:
@@ -394,6 +422,8 @@ class SerpApiEbay:
     # Set, an opened item is priced from used listings alone when `minimum` of them
     # are there, and the quote carries this name so the page can tell the two apart.
     USED_NAME: str | None = None
+    # Sold lookups narrow to the item's condition (`prefer_condition`); asks use USED_NAME.
+    MATCH_CONDITION = False
     # How many sales must name the item's edition before only those count.
     EDITION_MINIMUM = 3
     PARAMS: dict = {}
@@ -435,6 +465,9 @@ class SerpApiEbay:
             if len(used) >= 3:
                 sales, name = used, self.USED_NAME
         chosen, edition = prefer_edition_sales(sales, item, self.EDITION_MINIMUM)
+        if self.MATCH_CONDITION:
+            chosen, fit = prefer_condition(chosen, item)
+            edition = f"{edition}, {fit}"
         log.info("%s %r: kept %d of %d, %d priced, %d used (%s)",
                  name, q, len(kept), len(results), len(sales), len(chosen), edition)
         return from_listings(name, chosen, "USD")
@@ -459,6 +492,7 @@ class SerpApiSold(SerpApiEbay):
 
     name = "serpapi_sold"
     EDITION_MINIMUM = SOLD_EDITION_MINIMUM
+    MATCH_CONDITION = True
     PARAMS = {"show_only": "Sold"}
 
 
@@ -512,8 +546,9 @@ class SoldComps:
         sales = [self._listing(s) for s in kept if s.get("soldCurrency") == "USD"
                  and self._price(s) is not None]
         chosen, edition = prefer_edition_sales(sales, item, self.EDITION_MINIMUM)
-        log.info("%s %r: kept %d of %d, %d priced, %d used (%s)",
-                 self.name, q, len(kept), len(results), len(sales), len(chosen), edition)
+        chosen, fit = prefer_condition(chosen, item)
+        log.info("%s %r: kept %d of %d, %d priced, %d used (%s, %s)",
+                 self.name, q, len(kept), len(results), len(sales), len(chosen), edition, fit)
         return from_listings(self.name, chosen, "USD")
 
     @staticmethod
