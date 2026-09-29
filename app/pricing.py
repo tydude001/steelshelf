@@ -342,6 +342,13 @@ def prefer_edition_sales(sales: list, item: sqlite3.Row, minimum: int = 3) -> tu
     return list(sales), "all"
 
 
+# A sold lookup narrows to the item's edition on a single sale that names it. A sale
+# is a real price, where an ask is only a floor, and a boutique edition may sell once
+# or twice in eBay's 90 days: those one or two beat twenty sales of the film's other
+# steelbooks. Few sales read as thin confidence on the page.
+SOLD_EDITION_MINIMUM = 1
+
+
 def prefer_edition(
     sales: list[tuple[str, float]], item: sqlite3.Row, minimum: int = 3
 ) -> tuple[list[float], str]:
@@ -387,6 +394,8 @@ class SerpApiEbay:
     # Set, an opened item is priced from used listings alone when `minimum` of them
     # are there, and the quote carries this name so the page can tell the two apart.
     USED_NAME: str | None = None
+    # How many sales must name the item's edition before only those count.
+    EDITION_MINIMUM = 3
     PARAMS: dict = {}
     API = "https://serpapi.com/search"
     NO_RESULTS = "hasn't returned any results"
@@ -425,7 +434,7 @@ class SerpApiEbay:
             used = [self._listing(s) for s in priced if listing_used(s)]
             if len(used) >= 3:
                 sales, name = used, self.USED_NAME
-        chosen, edition = prefer_edition_sales(sales, item)
+        chosen, edition = prefer_edition_sales(sales, item, self.EDITION_MINIMUM)
         log.info("%s %r: kept %d of %d, %d priced, %d used (%s)",
                  name, q, len(kept), len(results), len(sales), len(chosen), edition)
         return from_listings(name, chosen, "USD")
@@ -449,6 +458,7 @@ class SerpApiSold(SerpApiEbay):
     """Sold eBay listings (`show_only=Sold`); eBay's sold search covers about 90 days."""
 
     name = "serpapi_sold"
+    EDITION_MINIMUM = SOLD_EDITION_MINIMUM
     PARAMS = {"show_only": "Sold"}
 
 
@@ -474,6 +484,7 @@ class SoldComps:
     """
 
     name = "soldcomps_sold"
+    EDITION_MINIMUM = SOLD_EDITION_MINIMUM
     API = "https://api.sold-comps.com/v1/scrape"
 
     def __init__(self, api_key: str, http: httpx.Client | None = None):
@@ -500,7 +511,7 @@ class SoldComps:
         kept = [s for s in results if keyword_match(s.get("title", ""), item)]
         sales = [self._listing(s) for s in kept if s.get("soldCurrency") == "USD"
                  and self._price(s) is not None]
-        chosen, edition = prefer_edition_sales(sales, item)
+        chosen, edition = prefer_edition_sales(sales, item, self.EDITION_MINIMUM)
         log.info("%s %r: kept %d of %d, %d priced, %d used (%s)",
                  self.name, q, len(kept), len(results), len(sales), len(chosen), edition)
         return from_listings(self.name, chosen, "USD")

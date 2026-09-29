@@ -552,3 +552,29 @@ def test_soldcomps_narrows_to_the_items_retailer(conn):
     ]})
     q = source.quote(edition_row(conn, retailer="Best Buy", region="US"))
     assert (q.low, q.median, q.high, q.n_listings) == (40.0, 42.0, 44.0, 3)
+
+
+def test_sold_lookups_narrow_to_the_edition_on_even_one_sale(conn):
+    # As La La Land's did: two sales of the owner's Manta Lab among twenty Best Buys.
+    item = edition_row(conn, retailer="Manta Lab", region="HK")
+    items = [comp(f"Alien 4K Steelbook Best Buy Exclusive #{i}", str(30 + i), item_id=str(i))
+             for i in range(20)]
+    items += [comp("Alien 4K Steelbook Full Slip Manta Lab ! RARE #54/600", "629.99",
+                   item_id="m1"),
+              comp("NEW** [MANTA LAB] Alien 4K Steelbook Special Box", "699.95", item_id="m2")]
+    q = soldcomps({"items": items}).quote(item)
+    assert (q.source, q.low, q.high, q.n_listings) == ("soldcomps_sold", 629.99, 699.95, 2)
+    one = serp({"organic_results": [
+        sold("Alien 4K Steelbook Best Buy", "$40.00", 40.0),
+        sold("Alien 4K Steelbook", "$45.00", 45.0),
+        sold("Alien 4K Steelbook Manta Lab", "$600.00", 600.0),
+    ]}).quote(item)
+    assert (one.source, one.median, one.n_listings) == ("serpapi_sold", 600.0, 1)
+
+
+def test_asks_still_need_three_sales_naming_the_edition(conn):
+    item = edition_row(conn, retailer="Manta Lab")
+    q = active([listed(40, "Brand New"), listed(45, "Brand New"),
+                {**listed(600, "Brand New"), "title": "Alien 4K Steelbook Manta Lab"},
+                {**listed(650, "Brand New"), "title": "Alien 4K Steelbook Manta Lab"}]).quote(item)
+    assert q.n_listings == 4
