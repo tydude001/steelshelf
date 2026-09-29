@@ -50,9 +50,11 @@
       <div class="display">{{ "%.2f" | format(latest.median) }} {{ latest.currency }}</div>
       <div class="small"><strong>{{ "Sold (median)" if sold else "Ask (median)" }}</strong><span class="muted">
         {%- if latest.source == "serpapi_active_used" %} · used copies
+        {%- elif latest.source == "serpapi_active_new" %} · new copies
         {%- elif sold_fit %} · {{ "opened" if item_opened else "sealed" }} copies
         {%- elif sold_fit is sameas false %} · any condition
-        {%- elif not sold and item_opened %} · sealed copies{% endif %}
+        {%- elif not sold and item_opened %} · sealed copies
+        {%- elif not sold and item_sealed %} · new and used copies{% endif %}
         · {{ "entered" if latest.source == "manual_sold" else "fetched" }} {{ latest.fetched_at | day }}</span></div>
     </div>
     {% if item.paid_price is not none %}
@@ -83,6 +85,8 @@
   {% endif %}
   {% if latest.source == "serpapi_active_used" %}
   <p class="small" style="margin: 0"><strong>Priced from used copies,</strong> like yours.</p>
+  {% elif latest.source == "serpapi_active_new" %}
+  <p class="small" style="margin: 0"><strong>Priced from new copies,</strong> like yours.</p>
   {% elif sold_fit %}
   <p class="small" style="margin: 0"><strong>Sold prices of {{ "opened" if item_opened else
     "sealed" }} copies,</strong> like yours.</p>
@@ -92,6 +96,9 @@
   {% elif sold_fit is sameas false %}
   <p class="small" style="margin: 0"><strong>Includes opened copies</strong> — no sealed ones
     sold. Yours is sealed, so it's likely worth more.</p>
+  {% elif not sold and item_sealed and latest.source != "manual_sold" %}
+  <p class="small" style="margin: 0"><strong>Includes used copies</strong> — not enough
+    new ones for sale. Yours is sealed, so it's likely worth more.</p>
   {% elif not sold and item_opened %}
   <p class="small" style="margin: 0"><strong>Price of sealed copies</strong> — not enough
     opened ones for sale. Yours is opened, so it's likely worth less.</p>
@@ -129,7 +136,8 @@
   {% if reprice.on %}
   <p class="muted small" style="margin: 0">Re-priced on the {{ reprice.day }}th of each month;
     next {{ reprice.next.day }} {{ reprice.next.strftime("%b") }}. Refreshing by hand adds a
-    price now{% if asks_via_serpapi %} and uses one of the month’s searches{% endif %}.</p>
+    price now{% if asks_via_serpapi %} and uses one of the month’s searches{% if item.upc %}
+    (two, when its UPC finds nothing){% endif %}{% endif %}.</p>
   {% endif %}
   <div class="secondary">
     <details class="sold-entry">

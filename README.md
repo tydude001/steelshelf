@@ -290,8 +290,17 @@ the default and goes unsaid. With no eBay keyset, the same switch also sends
 "Fetch eBay asks" through SerpApi's current listings (`serpapi_active`, Buy It
 Now and best-offer only; auctions dropped), filtered the same way. An opened
 item is priced from used listings when three or more are in those results
-(`serpapi_active_used`); otherwise the page says it is the price of sealed
-copies. A used-only search is not run: for one popular title it found three.
+(`serpapi_active_used`), a sealed one from new listings likewise
+(`serpapi_active_new`); otherwise the page says the price mixes the two. A
+used-only search is not run: for one popular title it found three.
+
+**The UPC goes first.** Every title-searched source (SerpApi's sold and asks,
+SoldComps) searches an item that has a UPC by the UPC, and prices what that
+finds as the exact product (`matched = 'upc'`, no narrowing to the edition;
+a listing must still name the film, since eBay pads a thin search with
+others). Only when it finds nothing is the title searched, so such an item can
+spend two of the month's searches; `Quote.searches` counts them for the
+monthly re-price.
 
 **Sold lookups through SoldComps** (`source = 'soldcomps_sold'`), added
 2026-09-29 when SerpApi's sold search returned 503 for every query while its

@@ -697,6 +697,7 @@ def item_page(request: Request, item_id: int, error: str | None = None):
             "error": error,
             "asks_via_serpapi": asks_via_serpapi(),
             "item_opened": is_opened(item),
+            "item_sealed": bool((item["condition"] or "").strip()) and not is_opened(item),
             "sold_lookup": settings.sold_lookup_enabled,
             "gain": _gain(item, shown),
             "latest": shown,

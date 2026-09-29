@@ -468,8 +468,9 @@ def test_opened_item_priced_from_used_listings_when_three(conn):
                listed(90, "New (Other)")]
     q = active(results).quote(opened_row(conn, "opened"))
     assert (q.source, q.low, q.median, q.high) == ("serpapi_active_used", 60.0, 70.0, 80.0)
+    # Until 2026-09-29 a sealed item counted every ask; it now counts the new ones.
     q = active(results).quote(opened_row(conn, "sealed"))
-    assert (q.source, q.n_listings) == ("serpapi_active", 6)
+    assert (q.source, q.n_listings) == ("serpapi_active_new", 3)
 
 
 def test_opened_item_with_too_few_used_takes_every_listing(conn):

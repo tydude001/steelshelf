@@ -69,7 +69,7 @@ CREATE TABLE IF NOT EXISTS photos (
 CREATE TABLE IF NOT EXISTS valuations (
     id          INTEGER PRIMARY KEY,
     item_id     INTEGER NOT NULL REFERENCES items(id) ON DELETE CASCADE,
-    source      TEXT NOT NULL,      -- ebay_active|ebay_keyword|serpapi_active[_used]|
+    source      TEXT NOT NULL,      -- ebay_active|ebay_keyword|serpapi_active[_used|_new]|
                                     -- serpapi_sold|soldcomps_sold|manual_sold
     low         REAL,
     median      REAL,

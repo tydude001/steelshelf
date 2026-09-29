@@ -50,6 +50,7 @@ class Listing(NamedTuple):
     key: str = ""
     condition: str = ""
     url: str = ""
+    thumb: str = ""  # the listing's picture, when the vendor gives one; not stored
 
 
 @dataclass(frozen=True)
@@ -68,6 +69,7 @@ class Quote:
     # hand. Every row since this was recorded has one, and quotes its range as
     # `spread` does; a row without one is older and ran low to high.
     matched: str = ""
+    searches: int = 1  # how many of a vendor's searches the quote spent
 
 
 class PricingSource(Protocol):
@@ -439,25 +441,109 @@ def search_terms(item: sqlite3.Row) -> str:
 _EBAY_ITEM = re.compile(r"/itm/(?:[^/]+/)?(\d{9,})")
 
 
-class SerpApiEbay:
-    """eBay listings by title through SerpApi's eBay engine; subclasses pick which.
+def upc_match(listing_title: str, item: sqlite3.Row) -> bool:
+    """Is a listing a UPC search found one copy of this item? The UPC names the product;
+    the title only guards against eBay padding a thin search with other films."""
+    return not _NOT_ONE_COPY.search(listing_title) and title_match(listing_title, item["title"])
 
-    The search is keyword-only; the results are filtered by `keyword_match`,
-    like `EbayKeyword`'s, then narrowed to the
-    item's retailer and region by `prefer_edition` when enough sales name them.
-    Those two stay out of the query: many listings omit them, and one lookup is
-    one search of the monthly quota. Item price only, US dollars only: a listing
-    priced as a range (a variation listing) or in any other currency is dropped.
+
+def by_condition(sales: list[Listing], item: sqlite3.Row, name: str,
+                 used_name: str | None, new_name: str | None) -> tuple[list[Listing], str]:
+    """Asks narrowed to copies like the item's when three or more are there: used for an
+    opened one (`used_name`), new for a sealed one (`new_name`). The quote's source says
+    which, so the page can; too few and every ask counts, under `name`."""
+    if not (item["condition"] or "").strip():
+        return sales, name
+    if used_name and is_opened(item):
+        like, like_name = [s for s in sales if condition_used(s.condition)], used_name
+    elif new_name and not is_opened(item):
+        like, like_name = [s for s in sales if condition_new(s.condition)], new_name
+    else:
+        return sales, name
+    return (like, like_name) if len(like) >= 3 else (sales, name)
+
+
+class TitleSearched:
+    """A source that searches eBay by keyword through a vendor, and prices what it finds.
+
+    An item with a UPC is searched by it first: the UPC is the exact product, so
+    what it finds needs no narrowing to the edition (`matched` 'upc'). When it
+    finds nothing, or the item has none, the title is searched (`search_terms`),
+    filtered by `keyword_match`, then narrowed to the item's edition by
+    `prefer_edition_sales` when enough listings name it. Either way, asks narrow
+    to the item's condition by `by_condition`, sold lookups by `prefer_condition`.
+    The quote carries how many searches it spent (`Quote.searches`), since each
+    is one of the month's quota. Subclasses search (`_search`) and read a result
+    (`_listing`, None to drop it).
     """
 
-    name = "serpapi_ebay"
-    # Set, an opened item is priced from used listings alone when `minimum` of them
-    # are there, and the quote carries this name so the page can tell the two apart.
+    name = "title_searched"
+    # Set, an opened item is priced from used listings alone when three of them are
+    # there (a sealed one from new listings with NEW_NAME), and the quote carries this
+    # name so the page can tell.
     USED_NAME: str | None = None
-    # Sold lookups narrow to the item's condition (`prefer_condition`); asks use USED_NAME.
+    NEW_NAME: str | None = None
+    # Sold lookups narrow to the item's condition (`prefer_condition`).
     MATCH_CONDITION = False
     # How many sales must name the item's edition before only those count.
     EDITION_MINIMUM = 3
+
+    def _search(self, q: str) -> list[dict]:
+        raise NotImplementedError
+
+    def _listing(self, result: dict) -> Listing | None:
+        raise NotImplementedError
+
+    def keep(self, result: dict) -> bool:
+        return True
+
+    def _found(self, q: str, item, fits) -> list[Listing]:
+        results = self._search(q)
+        kept = [s for s in results if fits(s.get("title", ""), item) and self.keep(s)]
+        sales = [ls for ls in (self._listing(s) for s in kept) if ls is not None]
+        log.info("%s %r: kept %d of %d, %d priced", self.name, q, len(kept), len(results),
+                 len(sales))
+        return sales
+
+    def quote(self, item: sqlite3.Row) -> Quote:
+        self._check()
+        upc, searches, matched = (item["upc"] or "").strip(), 0, ""
+        sales: list[Listing] = []
+        if upc:
+            sales, searches = self._found(upc, item, upc_match), 1
+            matched = "upc" if sales else ""
+        if not sales:
+            sales = self._found(search_terms(item), item, keyword_match)
+            searches += 1
+        sales, name = by_condition(sales, item, self.name, self.USED_NAME, self.NEW_NAME)
+        chosen = sales
+        if not matched:
+            chosen, matched = self.narrow(sales, item)
+        fit = ""
+        if self.MATCH_CONDITION:
+            chosen, fit = prefer_condition(chosen, item)
+        log.info("%s: %d of %d counted (%s%s)", name, len(chosen), len(sales), matched,
+                 f", {fit}" if fit else "")
+        return replace(from_listings(name, chosen, "USD", matched), searches=searches)
+
+    def narrow(self, sales: list[Listing], item: sqlite3.Row) -> tuple[list[Listing], str]:
+        """The title search's listings narrowed to the item's edition, and how."""
+        return prefer_edition_sales(sales, item, self.EDITION_MINIMUM)
+
+    def _check(self) -> None:
+        pass
+
+
+class SerpApiEbay(TitleSearched):
+    """eBay listings through SerpApi's eBay engine; subclasses pick which.
+
+    Retailer and region stay out of the query: many listings omit them, and one
+    lookup is one search of the monthly quota. Item price only, US dollars only: a
+    listing priced as a range (a variation listing) or in any other currency is
+    dropped.
+    """
+
+    name = "serpapi_ebay"
     PARAMS: dict = {}
     API = "https://serpapi.com/search"
     NO_RESULTS = "hasn't returned any results"
@@ -467,10 +553,11 @@ class SerpApiEbay:
         # SerpApi scrapes eBay live; a 100-result sold search has taken over 30s.
         self.http = http or httpx.Client(timeout=60)
 
-    def quote(self, item: sqlite3.Row) -> Quote:
+    def _check(self) -> None:
         if not self.api_key:
             raise PricingError("SerpApi key missing: set SERPAPI_KEY")
-        q = search_terms(item)
+
+    def _search(self, q: str) -> list[dict]:
         r = self.http.get(self.API, params={
             "engine": "ebay", "ebay_domain": "ebay.com", "_nkw": q,
             "_ipg": 100, "api_key": self.api_key, **self.PARAMS,
@@ -478,45 +565,24 @@ class SerpApiEbay:
         body = r.json() if r.headers.get("content-type", "").startswith("application/json") else {}
         error = body.get("error", "")
         if self.NO_RESULTS in error:
-            results = []
-        elif r.status_code != 200 or error:
+            return []
+        if r.status_code != 200 or error:
             raise PricingError(f"SerpApi search failed: HTTP {r.status_code} {error or r.text[:200]}")
-        else:
-            results = body.get("organic_results", [])
-        kept = [s for s in results
-                if keyword_match(s.get("title", ""), item) and self.keep(s)]
-        priced = [
-            s for s in kept
-            if str(s.get("price", {}).get("raw", "")).startswith("$")
-            and s["price"].get("extracted") is not None
-        ]
-        sales = [self._listing(s) for s in priced]
-        name = self.name
-        if self.USED_NAME and is_opened(item):
-            used = [self._listing(s) for s in priced if listing_used(s)]
-            if len(used) >= 3:
-                sales, name = used, self.USED_NAME
-        chosen, edition = prefer_edition_sales(sales, item, self.EDITION_MINIMUM)
-        if self.MATCH_CONDITION:
-            chosen, fit = prefer_condition(chosen, item)
-            edition = f"{edition}, {fit}"
-        log.info("%s %r: kept %d of %d, %d priced, %d used (%s)",
-                 name, q, len(kept), len(results), len(sales), len(chosen), edition)
-        return from_listings(name, chosen, "USD", edition.split(",")[0])
+        return body.get("organic_results", [])
 
-    @staticmethod
-    def _listing(result: dict) -> Listing:
+    def _listing(self, result: dict) -> Listing | None:
+        price = result.get("price", {})
+        if not str(price.get("raw", "")).startswith("$") or price.get("extracted") is None:
+            return None
         link = str(result.get("link", ""))
         m = _EBAY_ITEM.search(link)
         return Listing(
-            result.get("title", ""), float(result["price"]["extracted"]),
+            result.get("title", ""), float(price["extracted"]),
             key=m.group(1) if m else (link or result.get("title", "")),
             condition=str(result.get("condition", "")),
             url=link,
+            thumb=str(result.get("thumbnail", "")),
         )
-
-    def keep(self, result: dict) -> bool:
-        return True
 
 
 class SerpApiSold(SerpApiEbay):
@@ -529,28 +595,30 @@ class SerpApiSold(SerpApiEbay):
 
 
 class SerpApiActive(SerpApiEbay):
-    """Current eBay asks by title, for when there is no eBay keyset: a floor, like
-    `EbayActive`'s. Auctions are dropped, since a bid so far is not an ask."""
+    """Current eBay asks by title, for when there is no eBay keyset. Auctions are
+    dropped, since a bid so far is not an ask."""
 
     name = "serpapi_active"
     USED_NAME = "serpapi_active_used"
+    NEW_NAME = "serpapi_active_new"
 
     def keep(self, result: dict) -> bool:
         return result.get("buying_format") != "auction" and "bids" not in result
 
 
-class SoldComps:
-    """Sold eBay listings through SoldComps (sold-comps.com), searched by title.
+class SoldComps(TitleSearched):
+    """Sold eBay listings through SoldComps (sold-comps.com).
 
-    The same search and filtering as `SerpApiSold` — `keyword_match`, then
-    `prefer_edition_sales` — from another vendor's scrape of eBay's sold search,
-    so it sits behind the same switch. Item price only (`soldPrice`, not
-    `totalPrice`, which adds shipping), US dollars only. One lookup is one
-    request of the month's quota whatever `count` is, so it asks for the most.
+    The same searches and filtering as `SerpApiSold`, from another vendor's scrape
+    of eBay's sold search, so it sits behind the same switch. Item price only
+    (`soldPrice`, not `totalPrice`, which adds shipping), US dollars only. One
+    lookup is one request of the month's quota whatever `count` is, so it asks for
+    the most.
     """
 
     name = "soldcomps_sold"
     EDITION_MINIMUM = SOLD_EDITION_MINIMUM
+    MATCH_CONDITION = True
     API = "https://api.sold-comps.com/v1/scrape"
 
     def __init__(self, api_key: str, http: httpx.Client | None = None):
@@ -558,10 +626,11 @@ class SoldComps:
         # It scrapes eBay live: a median of 4-6s, and slower when eBay is.
         self.http = http or httpx.Client(timeout=60)
 
-    def quote(self, item: sqlite3.Row) -> Quote:
+    def _check(self) -> None:
         if not self.api_key:
             raise PricingError("SoldComps key missing: set SOLDCOMPS_KEY")
-        q = search_terms(item)
+
+    def _search(self, q: str) -> list[dict]:
         r = self.http.get(
             self.API,
             params={"keyword": q, "ebaySite": "ebay.com", "count": 200},
@@ -573,15 +642,7 @@ class SoldComps:
             error = (body.get("error") or body.get("message") or body.get("code")
                      or r.text[:200])
             raise PricingError(f"SoldComps search failed: HTTP {r.status_code} {error}")
-        results = body.get("items") or []
-        kept = [s for s in results if keyword_match(s.get("title", ""), item)]
-        sales = [self._listing(s) for s in kept if s.get("soldCurrency") == "USD"
-                 and self._price(s) is not None]
-        chosen, edition = prefer_edition_sales(sales, item, self.EDITION_MINIMUM)
-        chosen, fit = prefer_condition(chosen, item)
-        log.info("%s %r: kept %d of %d, %d priced, %d used (%s, %s)",
-                 self.name, q, len(kept), len(results), len(sales), len(chosen), edition, fit)
-        return from_listings(self.name, chosen, "USD", edition)
+        return body.get("items") or []
 
     @staticmethod
     def _price(result: dict) -> float | None:
@@ -591,14 +652,17 @@ class SoldComps:
             return None
         return price if price > 0 else None
 
-    @classmethod
-    def _listing(cls, result: dict) -> Listing:
+    def _listing(self, result: dict) -> Listing | None:
+        price = self._price(result)
+        if result.get("soldCurrency") != "USD" or price is None:
+            return None
         url = str(result.get("url", ""))
         return Listing(
-            result.get("title", ""), cls._price(result),
+            result.get("title", ""), price,
             key=str(result.get("itemId") or url or result.get("title", "")),
             condition=str(result.get("condition") or ""),
             url=url,
+            thumb=str(result.get("image") or result.get("imageUrl") or ""),
         )
 
 
