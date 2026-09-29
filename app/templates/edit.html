@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Edit {{ item.title }} — steelshelf{% endblock %}
+{% block content %}
+<h1>Edit {{ item.title }}</h1>
+{% if errors %}
+<div class="errors">
+  <ul>{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul>
+</div>
+{% endif %}
+{% if identified %}
+<div class="doubts">
+  {% if changes %}
+  <p>Identified again from the photos. Nothing is saved until you save. Changed:</p>
+  <ul>{% for f, was, now in changes %}<li>{{ f }}: {{ was or "—" }} → {{ now }}</li>{% endfor %}</ul>
+  {% else %}
+  <p>Identified again from the photos: nothing new to suggest.</p>
+  {% endif %}
+  {% if doubts %}
+  <p>Check these before saving:</p>
+  <ul>{% for d in doubts %}<li>{{ d }}</li>{% endfor %}</ul>
+  {% endif %}
+  {% if via %}<p class="muted">Identified by {{ via }}.</p>{% endif %}
+</div>
+{% else %}
+<form id="reidentify" method="post" action="/items/{{ item.id }}/identify">
+  <button class="btn quiet wide" type="submit">Identify again from photos</button>
+  <p id="identify-status" class="muted" role="status">Sends the saved photos to Claude,
+  which can search the web, and fills in the form below for you to check. Takes up to a
+  minute or two.</p>
+</form>
+<script>
+  // A plain form POST that blocks on Claude: say so, and stop a second submit.
+  document.getElementById("reidentify").addEventListener("submit", (e) => {
+    const form = e.currentTarget;
+    if (form.dataset.busy) { e.preventDefault(); return; }
+    form.dataset.busy = "1";
+    const button = form.querySelector("button");
+    button.textContent = "Asking Claude…";
+    const status = document.getElementById("identify-status");
+    status.textContent = "Photos sent — Claude is reading them and may search the web. " +
+      "The form will fill in when it's done.";
+    status.classList.add("working");
+    setTimeout(() => button.disabled = true);
+  });
+  addEventListener("pageshow", (e) => { if (e.persisted) location.reload(); });
+</script>
+{% endif %}
+<form method="post" action="/items/{{ item.id }}">
+{% include "_details.html" %}
+  <button class="btn wide" type="submit">Save changes</button>
+</form>
+<p><a href="/items/{{ item.id }}">Cancel</a></p>
+{% endblock %}

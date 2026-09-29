@@ -1,0 +1,58 @@
+{# The item's fields — shared by the add form and the edit form. #}
+  <fieldset>
+    <legend>Details</legend>
+    <label for="title">Title</label>
+    <input id="title" name="title" required value="{{ values.title or '' }}">
+    <div class="pair">
+      <div>
+        <label for="genre">Genre</label>
+        <input id="genre" name="genre" value="{{ values.genre or '' }}"
+               placeholder="{{ 'from TMDB' if tmdb_on() else '' }}">
+      </div>
+      <div>
+        <label for="director">Director</label>
+        <input id="director" name="director" value="{{ values.director or '' }}"
+               placeholder="{{ 'from TMDB' if tmdb_on() else '' }}">
+      </div>
+    </div>
+    <label for="upc">UPC</label>
+    <input id="upc" name="upc" inputmode="numeric" pattern="[0-9]*"
+           value="{{ values.upc or '' }}">
+    <label for="format">Format</label>
+    <input id="format" name="format" list="formats" value="{{ values.format or '' }}">
+    <datalist id="formats">
+      <option value="4K UHD"><option value="4K + Blu-ray"><option value="Blu-ray">
+      <option value="DVD">
+    </datalist>
+    <label for="edition">Edition</label>
+    <input id="edition" name="edition" value="{{ values.edition or ('' if editing else 'Steelbook') }}">
+    <label for="retailer">Retailer exclusive</label>
+    <input id="retailer" name="retailer" list="retailers" value="{{ values.retailer or '' }}">
+    <datalist id="retailers">
+      <option value="Best Buy"><option value="Zavvi"><option value="Walmart">
+      <option value="Target"><option value="HMV"><option value="Amazon">
+    </datalist>
+    <label for="region">Region</label>
+    <input id="region" name="region" value="{{ values.region or '' }}" placeholder="US">
+    <label for="condition">Condition</label>
+    <select id="condition" name="condition">
+      {% set conditions = ["", "sealed", "opened", "dented", "scratched"] %}
+      {% if values.condition and values.condition not in conditions %}{% set conditions = conditions + [values.condition] %}{% endif %}
+      {% for c in conditions %}
+      <option value="{{ c }}" {{ "selected" if values.condition == c }}>{{ c or "—" }}</option>
+      {% endfor %}
+    </select>
+    <div class="pair">
+      <div>
+        <label for="paid_price">You paid</label>
+        <input id="paid_price" name="paid_price" inputmode="decimal" autocomplete="off"
+               placeholder="34.99" value="{{ values.paid_price if values.paid_price is not none else '' }}">
+      </div>
+      <div>
+        <label for="paid_on">Bought on</label>
+        <input id="paid_on" name="paid_on" type="date" value="{{ values.paid_on or '' }}">
+      </div>
+    </div>
+    <label for="notes">Notes</label>
+    <textarea id="notes" name="notes" rows="3">{{ values.notes or '' }}</textarea>
+  </fieldset>

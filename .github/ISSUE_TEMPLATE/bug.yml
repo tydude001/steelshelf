@@ -1,0 +1,46 @@
+name: Bug
+description: steelshelf ran, and did the wrong thing.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Don't attach your photos or your database.** Issues are public, and
+        edit history stays visible even if you delete a comment later.
+        Describe the case instead (format, edition, retailer, what the photos
+        show), and paste an eBay listing link only if the bug is about that
+        listing.
+  - type: textarea
+    id: did
+    attributes:
+      label: What you did
+      description: The page, and the button or form you used.
+    validations:
+      required: true
+  - type: textarea
+    id: happened
+    attributes:
+      label: What happened, and what you expected
+      description: The wrong field, price or page, and what it should have said.
+    validations:
+      required: true
+  - type: dropdown
+    id: identify
+    attributes:
+      label: Which keys are set
+      multiple: true
+      options:
+        - Anthropic API key
+        - Claude Code worker
+        - eBay keyset
+        - SerpApi (sold lookups on)
+        - TMDB
+        - None of these
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else
+      description: |
+        Optional: the commit you run (`git rev-parse --short HEAD`), how you
+        run it (Docker or a dev server), and a log line or stack trace with
+        keys and URLs stripped out.

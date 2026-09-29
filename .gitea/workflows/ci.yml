@@ -1,0 +1,24 @@
+name: CI
+
+on:
+  push:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          python3 --version
+          # PEP 668: the runner image's Python is externally managed, and the
+          # job container is thrown away after the run — installing into it is fine.
+          python3 -m pip install --quiet --break-system-packages -r requirements.txt -r requirements-dev.txt
+      - name: Ruff
+        run: python3 -m ruff check .
+      - name: Pytest
+        # Throwaway SQLite DBs per test follow TMPDIR; on a runner whose disk is
+        # btrfs, fsyncs dominate. /dev/shm is tmpfs.
+        env:
+          TMPDIR: /dev/shm
+        run: python3 -m pytest

@@ -1,0 +1,48 @@
+"""Runtime configuration, read from the environment (or .env in dev)."""
+
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
+    database_path: str = "./data/steelshelf.db"
+    photo_dir: str = "./data/photos"
+
+    ebay_client_id: str = ""
+    ebay_client_secret: str = ""
+    ebay_marketplace_id: str = "EBAY_US"
+
+    # Sold lookups through SerpApi's eBay engine. A scraper at one remove, so it
+    # ships disabled: the button and route exist only when this is true. With no
+    # eBay keyset, it also sends "Fetch eBay asks" through SerpApi.
+    sold_lookup_enabled: bool = False
+    serpapi_key: str = ""
+
+    anthropic_api_key: str = ""
+    anthropic_model: str = "claude-sonnet-5"
+
+    # TMDB's v3 API key or v4 read access token: genre and director by title
+    # (app/film.py). Unset, nothing is looked up and both are typed on the edit form.
+    tmdb_api_key: str = ""
+
+    # tools/worker.py, Claude Code on a machine logged in to it; unset, identify
+    # goes straight to the API.
+    worker_url: str = ""
+    worker_secret: str = ""
+
+    # The monthly re-price (app/reprice.py): on the REPRICE_DAY at REPRICE_HOUR,
+    # local, through whatever source "Refresh price" uses, stopping with
+    # REPRICE_RESERVE SerpApi searches left for refreshing by hand.
+    reprice_enabled: bool = True
+    reprice_day: int = 25
+    reprice_hour: int = 3
+    reprice_reserve: int = 20
+
+    admin_user: str = ""
+    admin_password: str = ""
+
+    log_level: str = "INFO"
+
+
+settings = Settings()

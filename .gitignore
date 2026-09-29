@@ -1,0 +1,14 @@
+.env
+data/*
+!data/.gitkeep
+*.db
+*.db-journal
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.venv/
+venv/
+.DS_Store
+.gitmessage
+demo/

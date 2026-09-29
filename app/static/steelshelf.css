@@ -1,0 +1,446 @@
+/* steelshelf — the cozy shelf look. Fonts are vendored (OFL, see fonts/). */
+
+@font-face {
+  font-family: "Fraunces"; font-style: normal; font-weight: 500 700; font-display: swap;
+  src: url("fonts/fraunces-latin.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Figtree"; font-style: normal; font-weight: 400 700; font-display: swap;
+  src: url("fonts/figtree-latin.woff2") format("woff2");
+}
+
+:root {
+  /* Blu-ray: the disc's midnight blue and the clear blue of its logo. The app is
+     dark-first; this light scheme is derived from the dark one below. --teal is the
+     good/up colour, kept greener than the accent so a gain never reads as a link. */
+  --bg: #EEF2F8; --card: #FFFFFF; --line: #D5DDE9; --fg: #111A2C; --muted: #4E5C72;
+  --accent: #1F6FD6; --on-accent: #fff; --link: #1A5DB8; --teal: #1B7A5E; --bad: #B3261E;
+  --chip: #DFE6F1; --track: #CBD5E3; --teal-soft: #C4E6DA; --teal-mid: #72BFA4;
+  --frame: #2B3A55; --wall: #DCE3EE; --plank: #6F7F9A; --plank-edge: #4A5870;
+  /* Every colour the sheet uses is a token here, redefined for dark below. */
+  --shadow: rgba(15,25,45,.2); --shadow-deep: rgba(15,25,45,.3); --lift: rgba(0,0,0,.15);
+  --brass-hi: #E8C56A; --brass-lo: #B9902F; --brass-ink: #3A2708;
+  --brass-shine: rgba(255,255,255,.5); --brass-drop: rgba(0,0,0,.4);
+  /* A steelbook spine: the case tone, the rolled metal's sheen, the pressed rim. */
+  --spine-tone: #4A4F57; --spine-ink: #F3F1EC; --art-ink: #F6F2EA;
+  --spine-sheen: linear-gradient(90deg, rgba(0,0,0,.28) 0, rgba(255,255,255,.38) 16%,
+    rgba(255,255,255,.04) 38%, rgba(255,255,255,.16) 64%, rgba(0,0,0,.3) 100%);
+  --art-sheen: linear-gradient(90deg, rgba(0,0,0,.42) 0, rgba(255,255,255,.28) 14%,
+    rgba(255,255,255,0) 36%, rgba(255,255,255,.12) 62%, rgba(0,0,0,.45) 100%);
+  --dim: rgba(10,15,28,.5);  /* outside the crop box */
+  --photo-sheen: linear-gradient(90deg, rgba(0,0,0,.22) 0, rgba(255,255,255,0) 22%,
+    rgba(255,255,255,0) 78%, rgba(0,0,0,.22) 100%);
+  --title-shadow: 0 1px 2px rgba(0,0,0,.85), 0 0 6px rgba(0,0,0,.6);
+  --rim: rgba(255,255,255,.5); --rim-shadow: rgba(0,0,0,.3);
+  --spine-drop: rgba(0,0,0,.35); --spine-lift: rgba(0,0,0,.3);
+  --steel: linear-gradient(135deg, #F1F3F5 0%, #A9B0B8 45%, #D5DADF 55%, #8C939B 100%);
+  /* Fallback case colours, for an item whose front photo gave none. */
+  --case-0: #4A4F57; --case-1: #C4522A; --case-2: #2F7D78; --case-3: #B8BEC5;
+  --case-4: #2B3A5C; --case-5: #C99A3B; --case-6: #7E2A2A; --case-7: #1F2226;
+  --case-8: #4F6B43; --case-9: #6E5A8C; --case-ink-dark: #23262B;
+  --leaf-1: #4F7A4A; --leaf-2: #6A9960; --leaf-3: #5E8B56; --pot: #8FA3BF; --pot-rim: #6F84A3;
+  --display: "Fraunces", Georgia, serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0A0F1C; --card: #111A2C; --line: #1F2B42; --fg: #E6ECF5; --muted: #94A2B8;
+    --accent: #4C9BFF; --on-accent: #04101F; --link: #8CC0FF; --teal: #4FC7A0; --bad: #FF8A7A;
+    --chip: #1A2640; --track: #26344F; --teal-soft: #1B3A33; --teal-mid: #2F8A6E;
+    --frame: #182236; --wall: #0D1424; --plank: #3C4A63; --plank-edge: #1E2638;
+    /* Shadows go black to show on a dark ground; brass and steel dim so they
+       don't glare off the wall; spine titles get a heavier shadow. */
+    --shadow: rgba(0,0,0,.45); --shadow-deep: rgba(0,0,0,.6); --lift: rgba(0,0,0,.4);
+    --brass-hi: #C9A652; --brass-lo: #94701F; --brass-ink: #2A1C05;
+    --brass-shine: rgba(255,255,255,.25); --brass-drop: rgba(0,0,0,.6);
+    --art-sheen: linear-gradient(90deg, rgba(0,0,0,.48) 0, rgba(255,255,255,.2) 14%,
+      rgba(255,255,255,0) 36%, rgba(255,255,255,.08) 62%, rgba(0,0,0,.52) 100%);
+    --dim: rgba(0,0,0,.6);
+    --photo-sheen: linear-gradient(90deg, rgba(0,0,0,.34) 0, rgba(255,255,255,0) 22%,
+      rgba(255,255,255,0) 78%, rgba(0,0,0,.34) 100%);
+    --title-shadow: 0 1px 2px rgba(0,0,0,.95), 0 0 7px rgba(0,0,0,.75);
+    --rim: rgba(255,255,255,.35); --spine-drop: rgba(0,0,0,.6); --spine-lift: rgba(0,0,0,.55);
+    --steel: linear-gradient(135deg, #C9CDD2 0%, #858B93 45%, #A9AFB5 55%, #6C727A 100%);
+    --leaf-1: #3F6A3B; --leaf-2: #557F4C; --leaf-3: #4B7545; --pot: #5A6B85; --pot-rim: #45546C;
+    color-scheme: dark;
+  }
+}
+
+* { box-sizing: border-box; }
+body { margin: 0 auto; padding: 0 16px 48px; max-width: 960px; background: var(--bg);
+       color: var(--fg); font: 16px/1.45 "Figtree", system-ui, sans-serif; }
+h1, h2, .display { font-family: var(--display); font-weight: 700; letter-spacing: -0.02em;
+                   line-height: 1.1; }
+h1 { font-size: 30px; margin: 8px 0 12px; }
+h2 { font-size: 22px; margin: 28px 0 10px; }
+a { color: var(--link); }
+.muted { color: var(--muted); }
+.credits { display: flex; flex-wrap: wrap; align-items: center; justify-content: center;
+  gap: 8px; margin: 32px 16px 20px; font-size: 12px; color: var(--muted); text-align: center; }
+.small { font-size: 13px; }
+
+/* --- header ------------------------------------------------------------- */
+.top { display: flex; align-items: center; justify-content: space-between; padding: 16px 0; }
+.brand { display: flex; align-items: center; gap: 10px; color: var(--fg); text-decoration: none;
+         font-family: var(--display); font-size: 25px; font-weight: 700; letter-spacing: -0.01em; }
+.brand img { width: 36px; height: 36px; }
+.top .brand { margin-right: auto; }
+.stats-link { margin-right: 14px; font-weight: 600; font-size: 15px; min-height: 44px;
+              display: inline-flex; align-items: center; text-decoration: none; }
+.add-btn { width: 44px; height: 44px; border-radius: 22px; background: var(--accent);
+           color: var(--on-accent); display: grid; place-items: center; text-decoration: none; }
+
+/* --- controls ------------------------------------------------------------ */
+.btn { display: inline-flex; align-items: center; justify-content: center; min-height: 48px;
+       padding: 0 18px; border: 0; border-radius: 14px; background: var(--accent);
+       color: var(--on-accent); font: inherit; font-weight: 700; text-decoration: none;
+       cursor: pointer; }
+.btn.quiet { background: var(--fg); color: var(--bg); }
+.btn.wide { width: 100%; }
+.btn:disabled { opacity: .6; cursor: progress; }
+.working { color: var(--fg); font-weight: 600; }
+.working::before { content: ""; display: inline-block; width: 12px; height: 12px;
+       margin-right: 8px; vertical-align: -1px; border: 2px solid var(--muted);
+       border-top-color: transparent; border-radius: 50%; animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+label { display: block; margin: 12px 0 4px; font-weight: 600; font-size: 14px; }
+input, select, textarea { width: 100%; font: inherit; padding: 10px; color: var(--fg);
+       background: var(--card); border: 1px solid var(--line); border-radius: 10px; }
+input[type=file] { padding: 8px; }
+label.check { display: flex; gap: 10px; align-items: flex-start; font-weight: 400; }
+label.check input { width: auto; margin: 3px 0 0; }
+fieldset { background: var(--card); border: 1px solid var(--line); border-radius: 18px;
+           padding: 6px 16px 16px; margin: 0 0 16px; }
+legend { font-family: var(--display); font-weight: 700; font-size: 18px; padding: 0 6px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 18px;
+        padding: 16px; }
+.errors { color: var(--bad); border: 1px solid var(--bad); border-radius: 14px;
+          padding: 8px 14px; margin-bottom: 14px; }
+.doubts { background: var(--card); border: 2px solid var(--accent); border-radius: 14px;
+          padding: 8px 14px; margin-bottom: 14px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; list-style: none; padding: 0; margin: 0; }
+.chips li { font-size: 13px; font-weight: 600; padding: 4px 10px; border-radius: 999px;
+            background: var(--chip); }
+.chips li:first-child { background: var(--fg); color: var(--bg); }
+
+/* --- summary + view switch ---------------------------------------------- */
+.summary { display: grid; gap: 12px; margin-bottom: 16px; }
+.headline { display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
+            flex-wrap: wrap; }
+.headline .display { font-size: 30px; }
+.tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.tile { background: var(--card); border: 1px solid var(--line); border-radius: 16px;
+        padding: 12px 14px; display: flex; flex-direction: column; gap: 4px; min-width: 0;
+        color: var(--fg); text-decoration: none; }
+a.tile:hover { border-color: var(--muted); }
+.tile .k { font-size: 12px; font-weight: 600; color: var(--muted); letter-spacing: .02em; }
+.tile .display { font-size: 24px; overflow-wrap: anywhere; }
+.tile .sub { font-size: 12px; color: var(--muted); }
+/* The gain tile: the up/down figure is the big number, the rest of its line small. */
+.tile.gain .sub .up, .tile.gain .sub .down { display: block; font-family: var(--display);
+        font-size: 24px; letter-spacing: -0.02em; line-height: 1.1; }
+.caveat { margin: 0; }
+@media (min-width: 720px) {
+  .headline { display: none; }
+  .tiles { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: 1fr; }
+  .tile .display, .tile.gain .sub .up, .tile.gain .sub .down { font-size: 28px; }
+}
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.views { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin-bottom: 16px; }
+.switch { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px;
+          background: var(--chip); border-radius: 14px; padding: 4px; width: 100%;
+          max-width: 320px; }
+.search { margin: 0; flex: 1 1 220px; max-width: 320px; }
+.search input { padding: 9px 14px; border-radius: 12px; min-height: 44px; }
+.matches { margin: -6px 0 12px; }
+.shelves .room.none { display: grid; place-items: center; width: auto; flex: 1; padding: 8px;
+          color: var(--muted); font-size: 14px; font-weight: 600; text-align: center; }
+/* Sort chips: one scrolling row on a phone, so every order is a thumb away. */
+.sorts { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; max-width: 100%;
+         padding: 2px; margin: -2px; }
+.sorts::-webkit-scrollbar { display: none; }
+/* On a phone the row clips: fade its right edge so it reads as one that scrolls. */
+@media (max-width: 720px) {
+  /* A mask reads alpha only: black is "show", not a colour on the page. */
+  .sorts { mask-image: linear-gradient(90deg, black calc(100% - 36px), transparent);
+           padding-right: 28px; }
+  .search { max-width: none; flex-basis: 100%; }
+}
+.sorts a { flex: 0 0 auto; padding: 9px 14px; border-radius: 999px; background: var(--chip);
+           color: var(--fg); font-size: 14px; font-weight: 600; text-decoration: none;
+           white-space: nowrap; min-height: 40px; display: inline-flex; align-items: center; }
+.sorts a.on { background: var(--fg); color: var(--bg); }
+.sorts a:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.switch label { margin: 0; height: 40px; display: grid; place-items: center; border-radius: 10px;
+                font-weight: 500; cursor: pointer; }
+#v-shelf:checked ~ .switch [for=v-shelf],
+#v-covers:checked ~ .switch [for=v-covers] { background: var(--card); font-weight: 700;
+                                             box-shadow: 0 1px 2px var(--lift); }
+#v-shelf:focus-visible ~ .switch [for=v-shelf],
+#v-covers:focus-visible ~ .switch [for=v-covers] { outline: 2px solid var(--accent); }
+#v-shelf:checked ~ .layout .covers-view,
+#v-covers:checked ~ .layout .bookcase { display: none; }
+
+/* --- the side column: a column beside the bookcase on a desktop, under it on a phone */
+body.wide { max-width: 1280px; }
+.layout { display: grid; gap: 16px; }
+.side { display: grid; gap: 14px; align-content: start; }
+.side h2.k { margin: 0 0 4px; font-family: inherit; line-height: inherit; }
+@media (min-width: 960px) {
+  .layout { grid-template-columns: minmax(0, 1fr) 340px; gap: 24px; align-items: start; }
+}
+.valuable ol { list-style: none; margin: 0; padding: 0; }
+.valuable li a { display: flex; align-items: center; gap: 12px; padding: 9px 0;
+            border-top: 1px solid var(--line); color: var(--fg); text-decoration: none; }
+.valuable li:first-child a { border-top: 0; }
+.valuable li a:hover strong { text-decoration: underline; }
+.valuable img, .valuable .swatch { width: 40px; height: 53px; flex: 0 0 auto; object-fit: cover;
+            border-radius: 4px; background: var(--tone, var(--chip)); }
+.valuable .name { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column;
+             font-size: 14px; line-height: 1.3; }
+.valuable .name strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.valuable .price { font-size: 17px; white-space: nowrap; }
+
+/* --- the bookcase --------------------------------------------------------
+   One wrapping flex row. Every spine is the same height with the same
+   margins, so every wrapped line is exactly --row tall, and a repeating
+   background paints a plank under each line: the shelves fall out of the
+   wrap at any screen width, with no server-side row math. */
+.bookcase { --spine-h: 150px; --gap-top: 26px; --plank-h: 16px;
+            --row: calc(var(--gap-top) + var(--spine-h) + var(--plank-h));
+            background: var(--frame); border-radius: 12px; padding: 10px;
+            box-shadow: 0 12px 28px var(--shadow); }
+.shelves { position: relative; display: flex; flex-wrap: wrap; align-items: flex-end;
+           padding: 0 8px; list-style: none; margin: 0;
+           background: repeating-linear-gradient(to bottom,
+             var(--wall) 0, var(--wall) calc(var(--row) - var(--plank-h)),
+             var(--plank) calc(var(--row) - var(--plank-h)), var(--plank) calc(var(--row) - 6px),
+             var(--plank-edge) calc(var(--row) - 6px), var(--plank-edge) var(--row)); }
+.shelves > li { height: var(--spine-h); margin: var(--gap-top) 1.5px var(--plank-h); }
+/* A grouped sort: each group is its own run of shelf with a brass plaque in the
+   gap above its first row. */
+.shelves .plaque { position: absolute; top: 4px; left: 12px; height: auto; margin: 0;
+           z-index: 1; padding: 3px 9px; border-radius: 3px; font-size: 10px; font-weight: 700;
+           letter-spacing: .12em; text-transform: uppercase; color: var(--brass-ink); white-space: nowrap;
+           background: linear-gradient(180deg, var(--brass-hi), var(--brass-lo));
+           box-shadow: 0 1px 2px var(--brass-drop), inset 0 1px 0 var(--brass-shine); }
+@media (min-width: 720px) { .bookcase { --spine-h: 172px; } }
+
+/* A steelbook spine, not a book's: every case is the same size, the metal
+   rolls round at both ends, and the rim is pressed in top and bottom. The art
+   is the front cover's left edge (/items/{id}/spine.jpg), which is what a real
+   spine carries; under it, the case colour taken from the photo. */
+.spine { position: relative; display: flex; flex-direction: column; align-items: center;
+         justify-content: space-between; width: calc(var(--spine-h) * var(--r, .13)); height: 100%;
+         padding: 14px 0 12px; border-radius: 6px; text-decoration: none;
+         color: var(--ink, var(--spine-ink)); background-color: var(--tone, var(--spine-tone));
+         background-image: var(--spine-sheen);
+         background-size: auto; background-position: center;
+         box-shadow: 0 1px 2px var(--spine-drop);
+         transition: transform .15s ease, box-shadow .15s ease; }
+.spine.art { color: var(--art-ink); background-image: var(--art-sheen), var(--art); background-size: auto, cover; }
+.spine.art .t, .spine.art .f { text-shadow: var(--title-shadow); }
+/* The real spine, cut from the spine photo at its own width (--r, width over
+   height): its print is the title, the case's own rims are in the photo. */
+.spine.photo { padding: 0; border-radius: 3px; background-color: var(--spine-tone);
+               background-image: var(--photo-sheen), var(--art); background-size: auto, 100% 100%; }
+.spine.photo::before, .spine.photo::after { content: none; }
+.spine::before, .spine::after { content: ""; position: absolute; left: 3px; right: 3px;
+         height: 1px; background: var(--rim); box-shadow: 0 1px 0 var(--rim-shadow); }
+.spine::before { top: 7px; }
+.spine::after { bottom: 7px; }
+.spine .t { writing-mode: vertical-rl; font-size: 11px; font-weight: 700; letter-spacing: .08em;
+            text-transform: uppercase; white-space: nowrap; overflow: hidden;
+            text-overflow: ellipsis; max-height: calc(100% - 26px); }
+.spine .f { font-size: 8px; font-weight: 700; letter-spacing: .04em; opacity: .85; }
+.spine .tag { position: absolute; bottom: calc(100% + 8px); left: 50%; translate: -50% 0;
+              background: var(--fg); color: var(--bg); font-size: 12px; font-weight: 700;
+              padding: 4px 9px; border-radius: 999px; white-space: nowrap; opacity: 0;
+              pointer-events: none; transition: opacity .15s ease; z-index: 1; }
+.spine:hover, .spine:focus-visible { transform: translateY(-14px);
+                                     box-shadow: 0 8px 12px var(--spine-lift); }
+.spine:hover .tag, .spine:focus-visible .tag { opacity: 1; }
+.spine:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { .spine { transition: none; } }
+
+/* Fallback case colours, by item id, for an item whose front photo gave no
+   colour. Light cases get dark ink. */
+.c0 { --tone: var(--case-0); } .c1 { --tone: var(--case-1); } .c2 { --tone: var(--case-2); }
+.c3 { --tone: var(--case-3); --ink: var(--case-ink-dark); } .c4 { --tone: var(--case-4); }
+.c5 { --tone: var(--case-5); --ink: var(--case-ink-dark); } .c6 { --tone: var(--case-6); }
+.c7 { --tone: var(--case-7); } .c8 { --tone: var(--case-8); } .c9 { --tone: var(--case-9); }
+
+.shelves .room { width: 120px; }
+.room a { height: 100%; display: grid; place-items: center; text-align: center; padding: 8px;
+          border: 2px dashed var(--muted); border-radius: 6px; color: var(--muted);
+          font-size: 13px; font-weight: 600; text-decoration: none; opacity: .8; }
+.shelves .plant { margin-left: auto; display: flex; align-items: flex-end; }
+.plant .l1 { fill: var(--leaf-1); } .plant .l2 { fill: var(--leaf-2); }
+.plant .l3 { fill: var(--leaf-3); } .plant .pot { fill: var(--pot); }
+.plant .rim { fill: var(--pot-rim); }
+
+/* --- covers grid -------------------------------------------------------- */
+.covers { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+          gap: 14px; list-style: none; padding: 0; margin: 0 0 20px; }
+.cover-group { font-size: 16px; margin: 4px 0 10px; color: var(--muted); }
+.covers a { color: var(--fg); text-decoration: none; display: block; }
+.cover { background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+         overflow: hidden; }
+.cover img, .noimg { width: 100%; aspect-ratio: 3 / 4; object-fit: cover; display: block;
+                     background: var(--chip); }
+.cover div { padding: 8px 10px 10px; }
+
+/* --- item page ---------------------------------------------------------- */
+.itembar { display: flex; justify-content: space-between; align-items: center;
+           padding: 14px 0; font-size: 15px; font-weight: 600; }
+.itembar a { display: inline-flex; align-items: center; gap: 6px; min-height: 44px;
+             text-decoration: none; }
+.itembar a:first-child { color: var(--fg); }
+/* Three blocks: how far to trust the price (pricing.confidence). */
+.confidence { display: flex; align-items: center; gap: 10px; }
+.blocks { display: flex; gap: 3px; flex: 0 0 auto; }
+.blocks i { width: 18px; height: 6px; border-radius: 3px; background: var(--track); }
+.blocks i.on { background: var(--teal); }
+.secondary { display: flex; flex-wrap: wrap; gap: 8px; }
+.secondary > * { flex: 1 1 0; margin: 0; }
+.secondary details[open] { flex-basis: 100%; }
+.secondary .btn.tiny { width: 100%; min-height: 42px; font-size: 14px; }
+summary.btn { list-style: none; }
+summary.btn::-webkit-details-marker { display: none; }
+.sold-entry form { display: grid; gap: 8px; margin-top: 8px; }
+.sold-entry label { margin: 0; }
+details.how summary, .history details summary { cursor: pointer; color: var(--link);
+           font-weight: 600; }
+details.how p { margin: 6px 0 0; }
+.history { display: grid; gap: 10px; margin-top: 14px; }
+.history h2, .facts dl { margin: 0; }
+.facts { margin-top: 14px; }
+.chart { display: block; width: 100%; height: auto; overflow: visible; }
+.chart .axis { stroke: var(--line); }
+.chart .trend { fill: none; stroke: var(--teal); stroke-width: 2; stroke-linejoin: round; }
+.chart .dot { fill: var(--teal); }
+.chart .dot.last { fill: var(--fg); }
+.chart .dot.partial { fill: var(--card); stroke: var(--bad); stroke-width: 2; }
+.chart text { font: 11px "Figtree", system-ui, sans-serif; fill: var(--muted); }
+.chart text.value { font-size: 12px; font-weight: 700; fill: var(--fg); }
+
+/* --- item stage --------------------------------------------------------- */
+.stage { margin: 0 -16px; padding: 12px 16px 0; background: var(--wall);
+         border-bottom: 16px solid var(--plank); box-shadow: 0 6px 0 var(--plank-edge);
+         display: flex; justify-content: center; align-items: flex-end; min-height: 250px; }
+.case-front { width: 150px; padding: 7px; border-radius: 7px; margin-bottom: 4px;
+              background: var(--steel);
+              transform: rotate(-3deg); box-shadow: 0 14px 22px var(--shadow-deep); }
+.case-front img { display: block; width: 100%; aspect-ratio: 3 / 4; object-fit: cover;
+                  border-radius: 3px; }
+.photos { display: flex; gap: 8px; overflow-x: auto; margin: 16px 0; }
+.photos figure { margin: 0; flex: 0 0 auto; }
+.photos img { height: 120px; border-radius: 10px; display: block; }
+.photos figcaption { font-size: 13px; }
+.value { display: grid; gap: 12px; margin-top: 8px; }
+.value .display { font-size: 44px; }
+.worth { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.worth .paid { text-align: right; }
+.worth .paid .display { font-size: 24px; }
+.missed strong { color: var(--bad); }
+.up { color: var(--teal); font-weight: 700; }
+.down { color: var(--bad); font-weight: 700; }
+.pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.range { position: relative; height: 10px; border-radius: 5px; margin-top: 4px;
+         background: linear-gradient(90deg, var(--teal-soft), var(--teal) 30%, var(--teal) 70%,
+           var(--teal-soft)); }
+.range i { position: absolute; top: -4px; width: 18px; height: 18px; margin-left: -9px;
+           border-radius: 9px; background: var(--fg); border: 3px solid var(--card); }
+.range-ends { display: flex; justify-content: space-between; font-size: 13px; }
+/* The listings a price was counted from; a set-aside one stays, greyed. */
+.listings { display: grid; gap: 10px; margin-top: 14px; }
+.listings ul { list-style: none; margin: 0; padding: 0; }
+.listings li { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 10px;
+               align-items: center; padding: 8px 0; border-top: 1px solid var(--line);
+               font-size: 14px; }
+.listings li a { color: var(--fg); text-decoration: none; }
+.listings li a:hover { text-decoration: underline; }
+.listings .price { font-weight: 700; white-space: nowrap; }
+.listings .out > :not(form) { opacity: .55; }
+.listings .out .price { text-decoration: line-through; }
+.listings form { margin: 0; }
+.btn.tiny { min-height: 36px; padding: 0 12px; border-radius: 10px; font-size: 13px;
+            background: var(--chip); color: var(--fg); }
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th, td { text-align: left; padding: 6px 4px; border-bottom: 1px solid var(--line); }
+.scroll { overflow-x: auto; }
+dl { display: grid; grid-template-columns: max-content 1fr; gap: 4px 14px; }
+dt { color: var(--muted); }
+dd { margin: 0; }
+
+/* --- which spine, and its crop (/items/{id}/spine, /review) ------------------ */
+.spine-form { display: grid; gap: 14px; }
+.spine-form fieldset { margin: 0; }
+.spine-form label.check { min-height: 44px; align-items: center; margin: 0; }
+.spine-form label.check input { margin: 0; }
+.plank-preview { --spine-h: 172px; display: flex; gap: 14px; justify-content: center;
+                 align-items: flex-end; padding: 16px 18px 0; border-radius: 10px;
+                 background: var(--wall); border-bottom: 12px solid var(--plank); }
+.plank-preview .spine { height: var(--spine-h); flex: 0 0 auto; }
+.plank-preview .spine.chosen { outline: 2px solid var(--accent); outline-offset: 3px; }
+.crop-card { display: grid; gap: 10px; }
+.crop { position: relative; justify-self: center; max-width: 100%; touch-action: none;
+        border-radius: 10px; overflow: hidden; line-height: 0; }
+.crop img { max-width: 100%; max-height: 70vh; user-select: none; }
+.crop .box { position: absolute; border: 2px solid var(--accent); box-shadow: 0 0 0 999px var(--dim);
+             pointer-events: none; }
+.crop .handle { position: absolute; width: 36px; height: 36px; margin: -18px 0 0 -18px;
+                cursor: grab; touch-action: none; }
+.crop .handle::after { content: ""; position: absolute; inset: 11px; border-radius: 50%;
+                       background: var(--card); border: 2px solid var(--accent); }
+.crop-numbers { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 12px; }
+.spine-checks { list-style: none; margin: 0 0 20px; padding: 0; display: grid; gap: 14px; }
+.spine-checks li { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; }
+.spine-checks .crop { flex: 0 0 auto; width: 150px; }
+.spine-checks .plank-preview { --spine-h: 150px; padding: 12px 12px 0; }
+.spine-checks .what { flex: 1 1 240px; display: grid; gap: 8px; }
+.spine-checks .what h3 { margin: 0; font-family: var(--display); font-size: 20px; }
+.spine-checks form { margin: 0; }
+
+/* --- stats page -------------------------------------------------------------- */
+.stats-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 16px;
+              margin-bottom: 16px; }
+.stats-head h1 { margin: 0; }
+.stats { display: grid; gap: 16px; align-items: start; }
+.reprice { display: grid; gap: 10px; margin-bottom: 16px; }
+.reprice.stopped { border-color: var(--bad); }
+.reprice-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline;
+                gap: 4px 12px; }
+.reprice h2 { font-size: 18px; margin: 0; }
+.reprice .state { font-size: 13px; font-weight: 700; }
+.reprice .state.good { color: var(--teal); }
+.reprice .state.bad { color: var(--bad); }
+.reprice dl { margin: 0; font-size: 14px; }
+.reprice p, .reprice form { margin: 0; }
+@media (min-width: 960px) { .stats { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.stats h2 { font-size: 18px; margin: 0 0 12px; }
+.stats h3.k { font-size: 12px; font-weight: 600; color: var(--muted); letter-spacing: .02em;
+              margin: 14px 0 6px; }
+.stats h3.k:first-of-type { margin-top: 0; }
+.stats .note { margin: 12px 0 0; }
+.bars { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.bars li { display: grid; grid-template-columns: 110px minmax(0, 1fr) max-content;
+           align-items: center; gap: 10px; font-size: 14px; }
+.bars.wide-names li { grid-template-columns: 130px minmax(0, 1fr) max-content; }
+.bars .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bars i { display: block; height: 14px; min-width: 2px; border-radius: 4px;
+          background: var(--teal); }
+.bars b { text-align: right; font-weight: 700; }
+.bars.counts li { grid-template-columns: 80px minmax(0, 1fr) 36px; }
+.split { display: flex; height: 18px; border-radius: 5px; overflow: hidden;
+         background: var(--track); }
+.split .solid, .key .solid { background: var(--teal); }
+.split .fair, .key .fair { background: var(--teal-mid); }
+.split .thin, .key .thin { background: var(--track); }
+.key { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 4px; }
+.key i { display: inline-block; width: 10px; height: 10px; border-radius: 3px;
+         margin-right: 6px; vertical-align: -1px; }
+.key .thin { box-shadow: inset 0 0 0 1px var(--muted); }
+.stats details { margin-top: 10px; }
+.stats details summary { cursor: pointer; color: var(--link); font-weight: 600; }
+.thin-list { margin: 6px 0 0; padding-left: 18px; display: grid; gap: 2px; }

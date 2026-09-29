@@ -1,0 +1,18 @@
+# Identify worker (tools/worker.py) — a user unit on the machine logged in to
+# Claude Code. Install and run commands are in the worker's docstring.
+[Unit]
+Description=steelshelf identify worker (Claude Code on your subscription)
+After=network-online.target
+
+[Service]
+WorkingDirectory=%h/projects/steelshelf
+# Loopback unless the env file widens it: STEELSHELF_WORKER_HOST=0.0.0.0 when the
+# app runs on another machine. The file's value wins over this default.
+Environment=STEELSHELF_WORKER_HOST=127.0.0.1
+EnvironmentFile=%h/.config/steelshelf-worker.env
+ExecStart=%h/projects/steelshelf/.venv/bin/python -m uvicorn tools.worker:app --host ${STEELSHELF_WORKER_HOST} --port 8012
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=default.target

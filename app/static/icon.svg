@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <title>steelshelf</title>
+  <!-- steelshelf tab icon: the small-size cut of mark.svg, two spines and a disc, bold enough for 16 px. -->
+  <rect width="256" height="256" rx="48" fill="#0E1A33"/>
+  <rect x="32" y="64" width="44" height="124" rx="8" fill="#C9CED4"/>
+  <rect x="92" y="40" width="44" height="148" rx="8" fill="#4C9BFF"/>
+  <path fill="#E8EEF7" fill-rule="evenodd" d="M186 96a46 46 0 1 1 0 94a46 46 0 1 1 0-94zM186 128a15 15 0 1 0 0 30a15 15 0 1 0 0-30z"/>
+  <rect x="20" y="188" width="216" height="28" rx="6" fill="#E8EEF7"/>
+</svg>

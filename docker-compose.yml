@@ -1,0 +1,22 @@
+services:
+  steelshelf:
+    build: .
+    container_name: steelshelf
+    restart: unless-stopped
+    ports:
+      - "8010:8010"
+    env_file:
+      - .env
+    environment:
+      DATABASE_PATH: /app/data/steelshelf.db
+      PHOTO_DIR: /app/data/photos
+    volumes:
+      # Persists SQLite and the uploaded photos. `z` relabels the mounts for
+      # SELinux hosts (Fedora, RHEL), which otherwise deny the container a read;
+      # Docker ignores it where SELinux is off.
+      - ./data:/app/data:z
+      # The clone's code over the image's copy: a code change is a restart
+      # (~15s); only a change to Dockerfile or requirements.txt needs a rebuild.
+      - ./app:/app/app:ro,z
+    # Healthcheck comes from the image (Dockerfile); not restated here.
+    # Bridge mode: publishes only 8010.

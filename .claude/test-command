@@ -1,0 +1,3 @@
+# Read by the global test-gate Stop hook. Run from the repo root.
+# Same suite Gitea Actions runs; app deps live in Docker, tests in the local .venv.
+.venv/bin/python -m pytest -q

@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}steelshelf{% endblock %}</title>
+  <link rel="icon" href="/static/icon.svg" type="image/svg+xml">
+  <link rel="icon" href="/favicon.ico" sizes="32x32">
+  <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
+  <link rel="manifest" href="/static/manifest.webmanifest">
+  <meta name="theme-color" content="#0E1A33" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0A0F1C" media="(prefers-color-scheme: dark)">
+  <link rel="preload" href="/static/fonts/fraunces-latin.woff2" as="font" type="font/woff2"
+        crossorigin>
+  <link rel="stylesheet" href="/static/steelshelf.css">
+</head>
+<body{% block body_class %}{% endblock %}>
+  {% block header %}
+  <header class="top">
+    <a class="brand" href="/"><img src="/static/mark.svg" alt="">steelshelf</a>
+    <a class="stats-link" href="/stats">Stats</a>
+    <a class="add-btn" href="/add" aria-label="Add a steelbook">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+    </a>
+  </header>
+  {% endblock %}
+  {% block content %}{% endblock %}
+  {% if tmdb_on() %}
+  <footer class="credits">
+    <img src="/static/tmdb.svg" alt="TMDB" width="72" height="9">
+    This product uses the TMDB API but is not endorsed or certified by TMDB.
+  </footer>
+  {% endif %}
+</body>
+</html>

@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Needs a second look — steelshelf{% endblock %}
+{% block content %}
+<h1>Needs a second look</h1>
+{% if thin %}
+<p class="muted">Items saved without a format or region. Open one's edit page and
+use <strong>Identify again from photos</strong>. It can search the web now, which the
+first pass could not.</p>
+<ul>
+  {% for item, missing in thin %}
+  <li>
+    <a href="/items/{{ item.id }}/edit"><strong>{{ item.title }}</strong></a>
+    <span class="muted small">— no {{ missing | join(", ") }}</span>
+  </li>
+  {% endfor %}
+</ul>
+{% else %}
+<p class="muted">Every item has a format and region.</p>
+{% endif %}
+
+<h2>Spines to check</h2>
+<p class="muted">{{ n_photo }} on the shelf from their spine photo.{% if checks %} These
+{{ checks | length }} show the front cover’s edge, or a slipcover, until you pick.{% endif %}</p>
+{% if checks %}
+<ul class="spine-checks">
+  {% for it, why, box in checks %}
+  <li class="card">
+    <div class="crop">
+      <img src="/items/{{ it.id }}/spine-frame.jpg?turns={{ box.turns if box else 0 }}&amp;angle={{ box.angle if box else 0 }}"
+           alt="{{ it.title }}, spine photo" loading="lazy">
+      {% if box %}<span class="box" style="left: {{ box.x0 * 100 }}%; top: {{ box.y0 * 100 }}%; width: {{ (box.x1 - box.x0) * 100 }}%; height: {{ (box.y1 - box.y0) * 100 }}%"></span>{% endif %}
+    </div>
+    <div class="plank-preview">
+      {% if box %}<span class="spine photo" role="img" aria-label="Spine photo"
+            style="--r: {{ it.spine_ratio }}; --art: url(/items/{{ it.id }}/spine-photo.jpg?v={{ it.spine_box | ver }})"></span>{% endif %}
+      <span class="spine art c{{ it.id % 10 }}" role="img" aria-label="Front edge"
+            style="--r: .13;{% if it.spine_color %} --tone: {{ it.spine_color }};{% endif %} --art: url(/items/{{ it.id }}/spine.jpg)"><span class="t" aria-hidden="true">{{ it.title }}</span></span>
+    </div>
+    <div class="what">
+      <h3><a href="/items/{{ it.id }}">{{ it.title }}</a></h3>
+      <span class="small"><strong>{{ why }}</strong></span>
+      <div class="secondary">
+        {% if box %}
+        <form method="post" action="/items/{{ it.id }}/spine">
+          <input type="hidden" name="action" value="choose"><input type="hidden" name="next" value="/review">
+          <button class="btn tiny" type="submit" name="choice" value="photo">Use the spine photo</button>
+        </form>
+        {% endif %}
+        <form method="post" action="/items/{{ it.id }}/spine">
+          <input type="hidden" name="action" value="choose"><input type="hidden" name="next" value="/review">
+          <button class="btn tiny" type="submit" name="choice" value="edge">Keep the front edge</button>
+        </form>
+        <a class="btn tiny" href="/items/{{ it.id }}/spine">Adjust the crop</a>
+      </div>
+    </div>
+  </li>
+  {% endfor %}
+</ul>
+{% endif %}
+<p><a href="/">Back to the shelf</a></p>
+{% endblock %}

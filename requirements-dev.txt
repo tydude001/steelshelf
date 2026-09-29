@@ -1,0 +1,5 @@
+# Dev/test-only deps. Install alongside requirements.txt into a local venv:
+#   python -m venv .venv && .venv/bin/pip install -r requirements.txt -r requirements-dev.txt
+# The app itself runs in Docker; these are for running the test suite locally.
+pytest==9.1.1
+ruff==0.15.22

@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}Spine on the shelf · {{ item.title }} · steelshelf{% endblock %}
+{% block header %}
+<nav class="itembar">
+  <a href="/items/{{ item.id }}"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+     stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>{{ item.title }}</a>
+</nav>
+{% endblock %}
+{% block content %}
+{% set pct = "%.1f" %}
+<h1>Spine on the shelf</h1>
+<form class="spine-form" method="post" action="/items/{{ item.id }}/spine">
+  <input type="hidden" name="next" value="/items/{{ item.id }}">
+  <fieldset>
+    <legend class="k">Show</legend>
+    <label class="check"><input type="radio" name="choice" value="auto"{% if item.spine_choice is none %} checked{% endif %}>
+      <span><strong>Automatic</strong> <span class="muted small">· {% if auto == "photo" %}the spine photo, since it reads{% elif has_strip %}the front edge: the spine photo is too faint at shelf size{% else %}the front edge: no case found in the spine photo{% endif %}</span></span></label>
+    <label class="check"><input type="radio" name="choice" value="photo"{% if item.spine_choice == "photo" %} checked{% endif %}>
+      <strong>The spine photo</strong></label>
+    <label class="check"><input type="radio" name="choice" value="edge"{% if item.spine_choice == "edge" %} checked{% endif %}>
+      <strong>The front photo’s left edge</strong></label>
+  </fieldset>
+
+  <div class="plank-preview" aria-label="How each looks on the shelf">
+    {% if has_strip %}
+    <span class="spine photo{% if face == 'photo' %} chosen{% endif %}" role="img" aria-label="Spine photo"
+          style="--r: {{ item.spine_ratio }}; --art: url(/items/{{ item.id }}/spine-photo.jpg?v={{ item.spine_box | ver }})"></span>
+    {% endif %}
+    <span class="spine art c{{ item.id % 10 }}{% if face == 'edge' %} chosen{% endif %}" role="img" aria-label="Front edge"
+          style="--r: .13;{% if item.spine_color %} --tone: {{ item.spine_color }};{% endif %} --art: url(/items/{{ item.id }}/spine.jpg)">
+      <span class="t" aria-hidden="true">{{ item.title }}</span></span>
+  </div>
+
+  <section class="card crop-card">
+    <span class="k">Crop · drag the corners</span>
+    {% if not found %}<p class="small" style="margin: 0"><strong>No case found in this photo.</strong>
+      <span class="muted">Drag the box onto the spine, or rotate the photo if it lies on its side.</span></p>{% endif %}
+    <div class="crop" id="crop">
+      <img src="/items/{{ item.id }}/spine-frame.jpg?turns={{ box.turns }}&amp;angle={{ box.angle }}" alt="{{ item.title }}, spine photo" draggable="false">
+      <span class="box" id="crop-box"></span>
+      <span class="handle" id="h0" data-x="x0" data-y="y0" aria-hidden="true"></span>
+      <span class="handle" id="h1" data-x="x1" data-y="y1" aria-hidden="true"></span>
+    </div>
+    <input type="hidden" name="turns" value="{{ box.turns }}">
+    <input type="hidden" name="angle" value="{{ box.angle }}">
+    <details class="small">
+      <summary>Exact edges, in % of the photo</summary>
+      <div class="crop-numbers">
+        {% for f, label in [("x0", "Left"), ("x1", "Right"), ("y0", "Top"), ("y1", "Bottom")] %}
+        <label>{{ label }}<input type="number" name="{{ f }}" id="{{ f }}" min="0" max="100" step="0.1" value="{{ pct | format(box[f] * 100) }}"></label>
+        {% endfor %}
+      </div>
+    </details>
+    <div class="secondary">
+      <button class="btn tiny" type="submit" name="action" value="rotate">Rotate 90°</button>
+      <button class="btn tiny" type="submit" name="action" value="redetect">Find the case again</button>
+    </div>
+    {% if box.angle %}<p class="muted small" style="margin: 0">Straightened {{ "%g" | format(box.angle) }}° to the case edges.</p>{% endif %}
+  </section>
+
+  <button class="btn wide" type="submit" name="action" value="save">Save</button>
+</form>
+<script>
+  // Two corner handles over the photo write the four % fields; the fields move them back.
+  const crop = document.getElementById("crop"), box = document.getElementById("crop-box");
+  const field = (n) => document.getElementById(n);
+  function place() {
+    const [x0, y0, x1, y1] = ["x0", "y0", "x1", "y1"].map((n) => +field(n).value);
+    Object.assign(box.style, {left: x0 + "%", top: y0 + "%", width: (x1 - x0) + "%",
+                              height: (y1 - y0) + "%"});
+    Object.assign(document.getElementById("h0").style, {left: x0 + "%", top: y0 + "%"});
+    Object.assign(document.getElementById("h1").style, {left: x1 + "%", top: y1 + "%"});
+  }
+  for (const h of crop.querySelectorAll(".handle")) {
+    h.addEventListener("pointerdown", (e) => {
+      e.preventDefault();
+      h.setPointerCapture(e.pointerId);
+      const move = (ev) => {
+        const r = crop.getBoundingClientRect();
+        const clamp = (v) => Math.min(100, Math.max(0, v)).toFixed(1);
+        field(h.dataset.x).value = clamp((ev.clientX - r.left) / r.width * 100);
+        field(h.dataset.y).value = clamp((ev.clientY - r.top) / r.height * 100);
+        place();
+      };
+      h.addEventListener("pointermove", move);
+      h.addEventListener("pointerup", () => h.removeEventListener("pointermove", move), {once: true});
+    });
+  }
+  for (const n of ["x0", "y0", "x1", "y1"]) field(n).addEventListener("input", place);
+  place();
+</script>
+{% endblock %}

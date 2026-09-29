@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}Add a steelbook — steelshelf{% endblock %}
+{% block content %}
+<h1>Slot a new one in</h1>
+{% if errors %}
+<div class="errors">
+  <ul>{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul>
+  {% if not held %}<p>Photos are not kept between tries — take them again.</p>{% endif %}
+</div>
+{% endif %}
+{% if doubts %}
+<div class="doubts">
+  <p>Filled in from the photos. Check these before saving:</p>
+  <ul>{% for d in doubts %}<li>{{ d }}</li>{% endfor %}</ul>
+</div>
+{% elif values and held %}
+<p class="muted">Filled in from the photos — check every field before saving.</p>
+{% endif %}
+{% if via %}<p class="muted">Identified by {{ via }}.</p>{% endif %}
+<form method="post" action="/items" enctype="multipart/form-data">
+  <fieldset>
+    <legend>Photos</legend>
+    {% if held %}
+    <input type="hidden" name="draft" value="{{ draft }}">
+    <p class="muted">Holding {{ held | join(", ") }} from identify. Choose a file only to
+    replace one.</p>
+    {% endif %}
+    <label for="front">Front{% if not held %} (required){% endif %}</label>
+    <input id="front" name="front" type="file" accept="image/*" capture="environment"
+           {%- if not held %} required{% endif %}>
+    <label for="spine">Spine</label>
+    <input id="spine" name="spine" type="file" accept="image/*" capture="environment">
+    <label for="back">Back — with the barcode in frame</label>
+    <input id="back" name="back" type="file" accept="image/*" capture="environment">
+    <label for="other">Other — a limited-edition number, the bottom of a box set, a
+    sticker</label>
+    <input id="other" name="other" type="file" accept="image/*" capture="environment">
+    {% if not held %}
+    <label class="check"><input name="boxed" type="checkbox" value="1"> It's a box set or
+    has a slip — the photos show the outer packaging</label>
+    {% endif %}
+  </fieldset>
+  {% if not held %}
+  <button id="identify" class="btn quiet wide" type="submit" formaction="/add/identify"
+          formnovalidate>Identify from photos</button>
+  <p id="identify-status" class="muted" role="status">Identify sends the photos to Claude
+  and fills in the details below for you to check; it can take up to a minute.</p>
+  {% endif %}
+{% include "_details.html" %}
+  <button class="btn wide" type="submit">Put it on the shelf</button>
+</form>
+{% if not held %}
+<script>
+  // A plain form POST that blocks on Claude: say so, and stop a second submit.
+  document.querySelector("form").addEventListener("submit", (e) => {
+    const form = e.currentTarget;
+    if (form.dataset.busy) { e.preventDefault(); return; }
+    form.dataset.busy = "1";
+    if (e.submitter && e.submitter.id === "identify") {
+      e.submitter.textContent = "Asking Claude…";
+      const status = document.getElementById("identify-status");
+      status.textContent = "Photos sent — Claude is reading them. This can take up to a " +
+        "minute; the details will fill in when it's done.";
+      status.classList.add("working");
+    }
+    // Disable after the submission has captured its submitter.
+    setTimeout(() => form.querySelectorAll("button").forEach((b) => b.disabled = true));
+  });
+  // Back from the result restores this page from cache mid-"busy"; start it over.
+  addEventListener("pageshow", (e) => { if (e.persisted) location.reload(); });
+</script>
+{% endif %}
+{% endblock %}

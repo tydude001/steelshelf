@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+{% block title %}The shelf in numbers — steelshelf{% endblock %}
+{% block body_class %} class="wide"{% endblock %}
+{% block content %}
+{% macro bars(list, fmt="{:,.0f}", cls="") %}
+<ul class="bars{{ ' ' ~ cls if cls }}">
+  {% for b in list %}
+  <li><span class="name">{{ b.name }}</span><i style="width: {{ b.pct }}%"></i><b>{% if b.value is none %}<span class="muted" title="not priced">—</span>{% else %}{{ fmt.format(b.value) }}{% endif %}</b></li>
+  {% endfor %}
+</ul>
+{% endmacro %}
+{% set c = certainty %}
+<div class="stats-head">
+  <h1>The shelf in numbers</h1>
+  <span class="muted small">{{ items | length }} steelbook{{ "s" if items | length != 1 }}
+    · {{ basis }}{% if as_of %} as of {{ as_of | day }}{% endif %}</span>
+</div>
+
+{% set r = reprice %}
+{% set last = r.last %}
+<section class="card reprice{% if last and last.stopped %} stopped{% endif %}" id="reprice">
+  <div class="reprice-head">
+    <h2>Monthly re-price</h2>
+    {% if not r.on %}<span class="state muted">off</span>
+    {% elif r.running %}<span class="state">running now</span>
+    {% elif last and last.stopped %}<span class="state bad">stopped at {{ last.priced + last.no_listings + last.failed }} of {{ last.planned }}</span>
+    {% else %}<span class="state good">on · the {{ r.day }}th, {{ "%02d:00" | format(r.hour) }}</span>{% endif %}
+  </div>
+  {% if not r.on %}
+  <p class="muted small">{% if not r.enabled %}Switched off (<code>REPRICE_ENABLED</code>).{% else %}No pricing
+    source to run it with: an eBay keyset, or SerpApi with <code>SOLD_LOOKUP_ENABLED</code>
+    on.{% endif %} Prices change only when you press Refresh.</p>
+  {% else %}
+  <dl>
+    <dt>Last run</dt>
+    <dd>{% if last %}{{ last.started_at | day }} · {{ last.priced }} of {{ last.planned }} re-priced
+      {%- if last.no_listings %} · {{ last.no_listings }} found no listings, kept their price{% endif %}
+      {%- if last.failed %} · {{ last.failed }} failed twice{% endif %}{% else %}none yet{% endif %}</dd>
+    {% if last and last.stopped %}
+    <dt>Why</dt>
+    <dd>{% if last.stopped == "reserve" %}It stopped with {{ r.reserve }} SerpApi searches left, kept
+      back for refreshing by hand.{% elif last.stopped == "quota" %}SerpApi said the month’s searches
+      were used up.{% else %}Three items in a row failed twice; the source looked down.{% endif %}
+      The rest keep their last price; nothing was written for them.</dd>
+    <dt>Then</dt>
+    <dd>They go first, oldest price first: checked daily, and run once searches allow.</dd>
+    {% else %}
+    <dt>Next run</dt>
+    <dd>{% if r.due == "schedule" %}due now, within ten minutes{% else %}{{ r.next.day }} {{ r.next.strftime("%b %Y") }}{% endif %}</dd>
+    {% endif %}
+    {% if last and last.searches_left is not none %}
+    <dt>Searches</dt>
+    <dd>{{ last.searches_left }} SerpApi searches were left when it started; it used about
+      {{ last.priced + last.no_listings + last.failed }}, and keeps {{ r.reserve }} back.</dd>
+    {% endif %}
+  </dl>
+  {% if r.missed %}
+  <details class="small">
+    <summary>The {{ r.missed | length }} it did not re-price</summary>
+    <ul class="thin-list">
+      {% for m in r.missed %}
+      <li><a href="/items/{{ m.id }}">{{ m.title }}</a> <span class="muted">· {{ {"not_reached": "not reached", "failed": "failed: " ~ (m.detail or ""), "no_listings": "no listings found"}[m.outcome] }}</span></li>
+      {% endfor %}
+    </ul>
+  </details>
+  {% if not r.running %}
+  <form method="post" action="/reprice">
+    <button class="btn tiny" type="submit">Run the rest now</button>
+  </form>
+  {% endif %}
+  {% endif %}
+  <p class="muted small note">Asks only: the run never looks up sold prices. Each item is one
+    search; an item priced by hand since the {{ r.day }}th is skipped, and a price you typed in
+    stays put.</p>
+  {% endif %}
+</section>
+
+{% if films.on and items %}
+{% set f = films %}
+<section class="card" id="films">
+  <h2>Genre and director</h2>
+  <p class="small">{{ f.matched }} matched on TMDB{% if f.none %} · {{ f.none }} with no match{% endif %}{% if f.by_hand %} · {{ f.by_hand }} set by hand{% endif %}{% if f.waiting %} · {{ f.waiting }} still to look up{% endif %}</p>
+  {% if not f.waiting %}
+  <form method="post" action="/films/refetch">
+    <button class="btn tiny" type="submit">Look up every film again</button>
+  </form>
+  {% endif %}
+  <p class="muted small note">Fetches every case's genre and director from TMDB afresh, in the
+    background. A case whose genre or director you typed keeps them; clear both on its edit
+    form to hand it back to TMDB.</p>
+</section>
+{% endif %}
+
+{% if not items %}
+<p class="muted">Nothing on the shelf yet. <a href="/add">Photograph your first steelbook.</a></p>
+{% else %}
+<div class="stats">
+  <section class="card">
+    <h2>Value by retailer or label</h2>
+    {% if by_label %}
+    {{ bars(by_label, "{:,.0f} " ~ main.currency, "wide-names") }}
+    {% else %}<p class="muted small">No prices yet.</p>{% endif %}
+    {% if no_label %}
+    <p class="muted small note">{{ no_label }} item{{ "s" if no_label != 1 }} name{{ "s" if no_label == 1 }}
+      no retailer. Naming one narrows their price search.</p>
+    {% endif %}
+  </section>
+
+  <section class="card">
+    <h2>How sure the prices are</h2>
+    {% if c.priced %}
+    <div class="split" role="img" aria-label="{{ c.solid }} solid, {{ c.fair }} fair, {{ c.thin }} thin">
+      {% if c.solid %}<span class="solid" style="width: {{ c.pct(c.solid) }}%"></span>{% endif %}
+      {% if c.fair %}<span class="fair" style="width: {{ c.pct(c.fair) }}%"></span>{% endif %}
+      {% if c.thin %}<span class="thin" style="width: {{ c.pct(c.thin) }}%"></span>{% endif %}
+    </div>
+    <ul class="key small">
+      <li><i class="solid"></i><b>{{ c.solid }}</b> solid <span class="muted">· 12+ listings, close together</span></li>
+      <li><i class="fair"></i><b>{{ c.fair }}</b> fair <span class="muted">· fewer, or spread wide</span></li>
+      <li><i class="thin"></i><b>{{ c.thin }}</b> thin <span class="muted">· 4 or fewer</span></li>
+    </ul>
+    <p class="muted small note">{% if c.sold %}{{ c.sold }} backed by a sold price{% else %}None are backed by a sold price yet{% endif %}{% if c.unpriced %} · {{ c.unpriced }} not priced{% endif %}.</p>
+    {% if c.thin_items %}
+    <details class="small">
+      <summary>The {{ c.thin }} thin one{{ "s" if c.thin != 1 }}</summary>
+      <ul class="thin-list">
+        {% for it in c.thin_items %}
+        <li><a href="/items/{{ it.id }}">{{ it.title }}</a>
+          <span class="muted">· {{ it.latest_n }} listing{{ "s" if it.latest_n != 1 }}</span></li>
+        {% endfor %}
+      </ul>
+    </details>
+    {% endif %}
+    {% else %}<p class="muted small">No prices yet.</p>{% endif %}
+  </section>
+
+  <section class="card">
+    <h2>Format · Region · Condition</h2>
+    {% for heading, list in breakdowns.items() %}
+    <h3 class="k">{{ heading }}</h3>
+    {{ bars(list, "{:,.0f}", "counts") }}
+    {% endfor %}
+  </section>
+</div>
+{% endif %}
+{% endblock %}

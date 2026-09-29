@@ -1,0 +1,177 @@
+{% extends "base.html" %}
+{% import "_chart.html" as charts %}
+{% block body_class %} class="wide"{% endblock %}
+{% block content %}
+{% if items %}
+{% set main = floor[0] if floor else none %}
+<section class="summary">
+  <div class="headline">
+    <span class="display">{% if main %}{{ "{:,.0f}".format(main.total) }} {{ main.currency }}{% else %}—{% endif %}</span>
+    <span class="muted small">{{ items | length }} steelbook{{ "s" if items | length != 1 }} · {{ basis }}</span>
+  </div>
+  <div class="tiles">
+    <div class="tile">
+      <span class="k">Shelf value · {{ items | length }} steelbook{{ "s" if items | length != 1 }}</span>
+      {% for f in floor %}
+      <span class="display">{{ "{:,.0f}".format(f.total) }} {{ f.currency }}</span>
+      {% else %}
+      <span class="display">—</span>
+      {% endfor %}
+      <span class="sub">{% if floor %}each one's latest median · {{ basis }}{% else %}no prices yet{% endif %}</span>
+    </div>
+    {% for f in floor if f.n_paid %}
+    <div class="tile gain">
+      <span class="k">You paid {{ "{:,.0f}".format(f.paid) }} {{ f.currency }} for
+      {{ f.n_paid }} of them</span>
+      <span class="sub">{% if f.n_gain %}<span class="{{ 'up' if f.gain >= 0 else 'down' }}">{{ "up" if f.gain >= 0 else "down" }}
+      {{ "{:,.0f}".format(f.gain | abs) }}</span> on the {{ f.n_gain }} priced{% else %}none of them priced yet{% endif %}</span>
+    </div>
+    {% endfor %}
+    {% if biggest %}
+    <a class="tile" href="/?sort=label">
+      <span class="k">{{ biggest.name }} · {{ biggest.items | length }}</span>
+      <span class="display">{% if main and biggest.total %}{{ "{:,.0f}".format(biggest.total) }} {{ main.currency }}{% else %}—{% endif %}</span>
+      <span class="sub">{% if main and main.total %}{{ "%.0f" | format(biggest.total / main.total * 100) }}% of the shelf · the largest label{% else %}the largest label{% endif %}</span>
+    </a>
+    {% endif %}
+    <a class="tile" href="/review" aria-label="{{ n_review }} need{{ 's' if n_review == 1 }} a second look: no format or region">
+      <span class="k">Needs a look</span>
+      <span class="display">{{ n_review }}</span>
+      <span class="sub">no format or region — a looser price search</span>
+    </a>
+  </div>
+  {% if floor %}
+  <p class="muted small caveat">{{ kinds.fetched }} fetched from eBay · {{ kinds.by_hand }}
+      entered by hand{% if kinds.unpriced %} · {{ kinds.unpriced }} not priced{% endif %}.
+      Each is as of when it was fetched or entered, not live.</p>
+  {% endif %}
+</section>
+
+<input class="sr" type="radio" name="view" id="v-shelf" checked>
+<input class="sr" type="radio" name="view" id="v-covers">
+<div class="views">
+  <div class="switch">
+    <label for="v-shelf">Shelf</label>
+    <label for="v-covers">Covers</label>
+  </div>
+  <form class="search" role="search" action="/">
+    <input type="hidden" name="sort" value="{{ sort }}">
+    <label class="sr" for="q">Search the shelf</label>
+    <input id="q" type="search" name="q" value="{{ q }}" placeholder="Search the shelf"
+           autocomplete="off" enterkeyhint="search">
+  </form>
+  <nav class="sorts" aria-label="Sort the shelf">
+    {% for key, (label, _) in sorts.items() %}
+    <a href="/?sort={{ key }}{% if q %}&amp;q={{ q | urlencode }}{% endif %}"{% if key == sort %} class="on" aria-current="true"{% endif %}>{{ label }}</a>
+    {% endfor %}
+  </nav>
+</div>
+{% if q %}
+<p class="matches small"><strong>{{ n_matched }} of {{ items | length }}</strong> match
+  “{{ q }}” · <a href="/?sort={{ sort }}">clear</a></p>
+{% endif %}
+
+<div class="layout">
+<div class="shelf-main">
+<div class="bookcase">
+  {% for s in shelves %}
+  <ul class="shelves{% if s.name %} group{% endif %}">
+    {% if s.name %}<li class="plaque">{{ s.plaque }}</li>{% endif %}
+    {% for it in s.items %}
+    {% set fmt = (it.format or "") | lower %}
+    {% set face, ratio = it | spine_face %}
+    <li>
+      {% if face == "photo" %}
+      <a class="spine photo" href="/items/{{ it.id }}" title="{{ it.title }}"
+         style="--r: {{ ratio }}; --art: url(/items/{{ it.id }}/spine-photo.jpg?v={{ it.spine_box | ver }})">
+        <span class="sr">{{ it.title }}</span>
+      {% else %}
+      <a class="spine c{{ it.id % 10 }}{% if it.front_photo_id %} art{% endif %}" href="/items/{{ it.id }}" title="{{ it.title }}"
+         style="{% if it.spine_color %}--tone: {{ it.spine_color }}; --ink: {{ it.spine_color | spine_ink }}; {% endif %}--r: {{ ratio }};{% if it.front_photo_id %} --art: url(/items/{{ it.id }}/spine.jpg)"{% else %}"{% endif %}>
+        <span class="t">{{ it.title }}</span>
+        <span class="f">{% if "4k" in fmt %}4K{% elif "blu" in fmt %}BD{% elif "dvd" in fmt %}DVD{% endif %}</span>
+      {% endif %}
+        {% if it.latest_median is not none %}
+        <span class="tag">~{{ "%.0f" | format(it.latest_median) }} {{ it.latest_currency }}</span>
+        {% endif %}
+      </a>
+    </li>
+    {% endfor %}
+    {% if loop.last and not s.items %}
+    <li class="room none">Nothing on the shelf matches “{{ q }}”</li>
+    {% elif loop.last and not q %}
+    <li class="room"><a href="/add">Room for more — slot one in</a></li>
+    <li class="plant" aria-hidden="true">
+      <svg width="46" height="64" viewBox="0 0 46 64"><path class="l1" d="M23 30C10 26 6 12 10 4c8 6 12 14 13 26Z"/><path class="l2" d="M23 30c11-6 17-16 15-24-8 4-13 12-15 24Z"/><path class="l3" d="M23 32c-7-2-15-6-19-12 8-2 16 4 19 12Z"/><path class="pot" d="M9 34h28l-4 28H13Z"/><rect class="rim" x="7" y="32" width="32" height="6" rx="2"/></svg>
+    </li>
+    {% endif %}
+  </ul>
+  {% endfor %}
+</div>
+
+<div class="covers-view">
+  {% for s in shelves %}
+  {% if s.name %}<h2 class="cover-group">{{ s.plaque }}</h2>{% endif %}
+  <ul class="covers">
+    {% for it in s.items %}
+    <li class="cover">
+      <a href="/items/{{ it.id }}">
+        {% if it.front_photo_id %}
+        <img src="/photos/{{ it.front_photo_id }}/thumb" alt="{{ it.title }}" loading="lazy">
+        {% else %}<div class="noimg"></div>{% endif %}
+        <div>
+          <strong>{{ it.title }}</strong><br>
+          <span class="muted small">{{ it.retailer or it.format or "" }}</span>
+          {% if it.latest_median is not none %}
+          <br><span class="small">{{ "sold" if it.latest_source in ("manual_sold", "serpapi_sold") else "ask" }} ~{{ "%.2f" | format(it.latest_median) }} {{ it.latest_currency }}{% if it.latest_source == "manual_sold" %} · by hand{% endif %}</span>
+          {% endif %}
+        </div>
+      </a>
+    </li>
+    {% endfor %}
+  </ul>
+  {% endfor %}
+</div>
+</div>
+
+<aside class="side">
+  {% if top %}
+  <section class="tile valuable">
+    <h2 class="k">Most valuable</h2>
+    <ol>
+      {% for it in top %}
+      <li><a href="/items/{{ it.id }}">
+        {% if it.front_photo_id %}<img src="/photos/{{ it.front_photo_id }}/thumb" alt="" loading="lazy">
+        {% else %}<span class="swatch c{{ it.id % 10 }}"{% if it.spine_color %} style="--tone: {{ it.spine_color }}"{% endif %}></span>{% endif %}
+        <span class="name"><strong>{{ it.title }}</strong>
+          <span class="muted small">{{ it.retailer or it.edition or it.format or "" }}</span></span>
+        <span class="display price">{{ "{:,.0f}".format(it.latest_median) }} {{ it.latest_currency }}</span>
+      </a></li>
+      {% endfor %}
+    </ol>
+  </section>
+  {% endif %}
+  {% if over_time %}
+  <section class="tile">
+    <h2 class="k">Shelf value over time</h2>
+    {{ charts.line(over_time, "Shelf value over time", "{:,.0f}", marks) }}
+    {% if over_time.points | length == 1 %}
+    <span class="sub">One day of prices so far — a line once prices are fetched on a second day.</span>
+    {% endif %}
+    {% if reprice.on %}
+    <span class="sub"><a href="/stats#reprice">Re-priced monthly</a> ·
+      {% if reprice.running %}running now{% elif reprice.due == "schedule" %}due now{% elif reprice.last and reprice.last.stopped %}the last run stopped short{% else %}next {{ reprice.next.day }} {{ reprice.next.strftime("%b") }}{% endif %}</span>
+    {% endif %}
+  </section>
+  {% endif %}
+</aside>
+</div>
+{% else %}
+<div class="bookcase">
+  <ul class="shelves">
+    <li class="room"><a href="/add">Photograph your first steelbook</a></li>
+  </ul>
+</div>
+<p class="muted">The shelf is empty. <a href="/add">Photograph your first steelbook.</a></p>
+{% endif %}
+{% endblock %}

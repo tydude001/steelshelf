@@ -1,0 +1,18 @@
+{# A line chart from present.line: the trend, a dot per point (the latest dark and
+   labelled), the first value and the first and last days. One point is a dot.
+   `marks` maps a local day to a class for its dot: 'partial', a monthly re-price
+   that stopped short, is drawn hollow. #}
+{% macro line(c, label, fmt="{:.0f}", marks={}) %}
+<svg class="chart" viewBox="0 0 {{ c.width }} {{ c.height }}" role="img"
+     aria-label="{{ label }}: {{ c.points | length }} point{{ 's' if c.points | length != 1 }}, latest {{ fmt.format(c.last.value) }}">
+  <line class="axis" x1="6" y1="{{ c.axis }}" x2="{{ c.width - 6 }}" y2="{{ c.axis }}"/>
+  {% if c.points | length > 1 %}<polyline class="trend" points="{{ c.polyline }}"/>{% endif %}
+  {% for p in c.points %}{% set mark = marks.get(p.stamp | local_date) %}<circle class="dot{% if loop.last %} last{% endif %}{% if mark %} {{ mark }}{% endif %}" cx="{{ p.x }}" cy="{{ p.y }}" r="{{ 5 if loop.last or mark == 'partial' else 3.5 }}"/>{% endfor %}
+  <text class="value" x="{{ c.last.x }}" y="{{ c.last.y - 11 }}" text-anchor="middle">{{ fmt.format(c.last.value) }}</text>
+  {% if c.points | length > 1 %}
+  <text class="label" x="{{ c.first.x }}" y="{{ c.first.y - 10 }}" text-anchor="middle">{{ fmt.format(c.first.value) }}</text>
+  <text class="label" x="{{ c.first.x }}" y="{{ c.height - 4 }}" text-anchor="middle">{{ c.first.stamp | short_day }}</text>
+  {% endif %}
+  <text class="label" x="{{ c.last.x }}" y="{{ c.height - 4 }}" text-anchor="middle">{{ c.last.stamp | short_day }}</text>
+</svg>
+{% endmacro %}

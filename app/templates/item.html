@@ -1,0 +1,218 @@
+{% extends "base.html" %}
+{% import "_chart.html" as charts %}
+{% block title %}{{ item.title }} — steelshelf{% endblock %}
+{% block header %}
+<nav class="itembar">
+  <a href="/"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+     stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>Shelf</a>
+  <a href="/items/{{ item.id }}/edit">Edit</a>
+</nav>
+{% endblock %}
+{% block content %}
+{% set front = photos | selectattr("kind", "equalto", "front") | first %}
+<div class="stage">
+  {% if front %}
+  <a class="case-front" href="/photos/{{ front.id }}"><img src="/photos/{{ front.id }}/thumb"
+     alt="{{ item.title }}, front"></a>
+  {% else %}
+  <div class="case-front"><div class="noimg"></div></div>
+  {% endif %}
+</div>
+
+<h1 style="margin-top: 20px">{{ item.title }}</h1>
+<ul class="chips">
+  {% for f in ["format", "edition", "retailer", "region", "condition"] %}
+  {% if item[f] %}<li>{{ item[f] }}</li>{% endif %}
+  {% endfor %}
+</ul>
+
+{% if photos | length > 1 %}
+<div class="photos">
+  {% for p in photos %}
+  <figure>
+    <a href="/photos/{{ p.id }}"><img src="/photos/{{ p.id }}/thumb" alt="{{ p.kind }}"></a>
+    <figcaption class="muted">{{ p.kind }}</figcaption>
+  </figure>
+  {% endfor %}
+</div>
+{% endif %}
+{% if photos | selectattr("kind", "equalto", "spine") | list %}
+{% set face, _ = item | spine_face %}
+<p class="small">On the shelf: {{ "its spine photo" if face == "photo" else "the front cover’s edge" }}{% if item.spine_choice is none %}
+  <span class="muted">(automatic)</span>{% endif %} · <a href="/items/{{ item.id }}/spine">Change</a></p>
+{% endif %}
+
+<section class="card value">
+  {% if latest %}
+  <div class="worth">
+    <div>
+      <div class="muted small">Worth about</div>
+      <div class="display">{{ "%.2f" | format(latest.median) }} {{ latest.currency }}</div>
+      <div class="small"><strong>{{ "Sold (median)" if sold else "Ask (median)" }}</strong><span class="muted">
+        {%- if latest.source == "serpapi_active_used" %} · used copies{% elif not sold and item_opened %} · sealed copies{% endif %}
+        · {{ "entered" if latest.source == "manual_sold" else "fetched" }} {{ latest.fetched_at | day }}</span></div>
+    </div>
+    {% if item.paid_price is not none %}
+    <div class="paid">
+      <div class="muted small">You paid{% if item.paid_on %} {{ item.paid_on }}{% endif %}</div>
+      <div class="display">{{ "%.2f" | format(item.paid_price) }}</div>
+      {% if gain is not none %}
+      <div class="small {{ 'up' if gain >= 0 else 'down' }}">{{ "up" if gain >= 0 else "down" }} {{ "%.2f" | format(gain | abs) }}{% if item.paid_price %} · {{ "%.1f" | format(latest.median / item.paid_price) }}×{% endif %}</div>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+  {% if latest.high > latest.low %}
+  <div>
+    <div class="range"><i style="left: {{ ((latest.median - latest.low) / (latest.high - latest.low) * 100) | round(1) }}%"></i></div>
+    <div class="range-ends muted"><span>low {{ "%.2f" | format(latest.low) }}</span>
+      <span>high {{ "%.2f" | format(latest.high) }}</span></div>
+  </div>
+  {% endif %}
+  {% if confidence %}
+  <div class="confidence small">
+    <span class="blocks" role="img" aria-label="{{ confidence.word }} confidence: {{ confidence.level }} of 3">
+      {%- for i in range(3) %}<i{% if i < confidence.level %} class="on"{% endif %}></i>{% endfor -%}
+    </span>
+    <span><strong>{{ confidence.word }} confidence.</strong> <span class="muted">{{ confidence.sentence }}</span></span>
+  </div>
+  {% endif %}
+  {% if latest.source == "serpapi_active_used" %}
+  <p class="small" style="margin: 0"><strong>Priced from used copies,</strong> like yours.</p>
+  {% elif not sold and item_opened %}
+  <p class="small" style="margin: 0"><strong>Price of sealed copies</strong> — not enough
+    opened ones for sale. Yours is opened, so it's likely worth less.</p>
+  {% endif %}
+  {% if latest.source == "manual_sold" %}
+  <p class="small" style="margin: 0"><strong>Entered by hand, not live.</strong> These are
+    the sold prices you typed in on {{ latest.fetched_at | day }}; they stay put until you
+    enter new ones.</p>
+  {% endif %}
+  {% else %}
+  <div>
+    <div class="muted small">Worth about</div>
+    <div class="display">—</div>
+    <div class="small muted">Not priced yet.</div>
+  </div>
+  {% endif %}
+  {% if error %}<p class="errors" style="margin: 0">{{ error }}</p>{% endif %}
+  {% if missed %}
+  <p class="small missed" style="margin: 0"><strong>{% if missed.outcome == "not_reached" %}The
+    monthly re-price didn’t reach this one.{% elif missed.outcome == "failed" %}The monthly
+    re-price couldn’t price this one.{% else %}The monthly re-price found no listings for this
+    one.{% endif %}</strong> <span class="muted">It keeps its last price{% if missed.outcome != "no_listings" %},
+    and goes first next run{% endif %}.</span></p>
+  {% endif %}
+  <form method="post" action="/items/{{ item.id }}/value">
+    <button class="btn wide" type="submit">Refresh price</button>
+  </form>
+  {% if reprice.on %}
+  <p class="muted small" style="margin: 0">Re-priced on the {{ reprice.day }}th of each month;
+    next {{ reprice.next.day }} {{ reprice.next.strftime("%b") }}. Refreshing by hand adds a
+    price now{% if asks_via_serpapi %} and uses one of the month’s searches{% endif %}.</p>
+  {% endif %}
+  <div class="secondary">
+    <details class="sold-entry">
+      <summary class="btn tiny">Enter a sold price</summary>
+      <form method="post" action="/items/{{ item.id }}/sold">
+        <label class="muted small" for="sold-prices">Sold prices you found on eBay (Sold Items
+          filter), separated by commas</label>
+        <input id="sold-prices" name="prices" autocomplete="off"
+               placeholder="34.99, 41, 29.50">
+        <button class="btn quiet wide" type="submit">Save sold prices</button>
+      </form>
+    </details>
+    {% if sold_lookup %}
+    <form method="post" action="/items/{{ item.id }}/sold/lookup">
+      <button class="btn tiny" type="submit">Look up eBay sold prices</button>
+    </form>
+    {% endif %}
+  </div>
+  <details class="how small">
+    <summary>How this is priced</summary>
+    <p class="muted">Low / median / high of current eBay Buy It Now asks — a floor, not a sold
+    price. {% if asks_via_serpapi %}Searched by title through SerpApi
+    (<code>serpapi_active</code>), narrowed to this retailer and region when enough
+    listings name them.{% else %}Searched by UPC; with no UPC, by title
+    (<code>ebay_keyword</code>), which is looser.{% endif %}
+    {% if latest %}This price came from <code>{{ latest.source }}</code>.{% endif %}
+    A sold price, typed in or looked up, is labelled sold.</p>
+  </details>
+</section>
+
+{% if listings %}
+<section class="card listings" id="listings">
+  <div class="small"><strong>Listings behind this price</strong>
+    <span class="muted">· eBay, {{ "sold" if sold else "asks" }}</span></div>
+  <ul>
+    {% for l in listings %}
+    <li{% if l.excluded %} class="out"{% endif %}>
+      <div>
+        {% if l.url %}<a href="{{ l.url }}" rel="noopener noreferrer" target="_blank">{{ l.title }}</a>{% else %}{{ l.title }}{% endif %}
+        <div class="muted small">{{ l.condition or "condition not given" }}{% if l.excluded %} · set aside{% endif %}</div>
+      </div>
+      <span class="price">{{ "%.2f" | format(l.price) }}</span>
+      <form method="post" action="/items/{{ item.id }}/listings/{{ l.id }}/toggle">
+        <button class="btn tiny" type="submit" aria-label="{{ 'Count' if l.excluded else 'Set aside' }}: {{ l.title }}">{{ "Count it" if l.excluded else "Not this one" }}</button>
+      </form>
+    </li>
+    {% endfor %}
+  </ul>
+  <p class="muted small" style="margin: 0">Set one aside and the price is re-counted from the
+  rest; it stays out of every later fetch.</p>
+</section>
+{% endif %}
+
+{% if valuations %}
+<section class="card history">
+  <h2>History</h2>
+  {% if chart %}
+  {% set c = chart %}
+  {{ charts.line(c, "Price history") }}
+  {% if c.points | length == 1 %}<p class="muted small" style="margin: 0">One price so far — a line once there is a second fetch.</p>{% endif %}
+  {% endif %}
+  <details class="small">
+    <summary>Every fetch ({{ valuations | length }})</summary>
+    <div class="scroll">
+    <table>
+      <thead><tr><th>fetched</th><th>how</th><th>low</th><th>median</th><th>high</th><th>n</th><th>source</th></tr></thead>
+      <tbody>
+      {% for v in valuations %}
+      <tr>
+        <td>{{ v.fetched_at | day }}</td>
+        <td>{{ "monthly" if v.via == "monthly" else "typed in" if v.source == "manual_sold" else "by hand" }}</td>
+        {% if v.n_listings %}
+        <td>{{ "%.2f" | format(v.low) }}</td><td>{{ "%.2f" | format(v.median) }}</td>
+        <td>{{ "%.2f" | format(v.high) }} {{ v.currency }}</td>
+        {% else %}<td colspan="3" class="muted">nothing listed</td>{% endif %}
+        <td>{{ v.n_listings }}</td>
+        <td class="muted">{{ v.source }}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </details>
+</section>
+{% endif %}
+
+<section class="card facts">
+<dl>
+  {% for f in ["director", "genre", "upc", "notes"] %}
+  {% if item[f] %}<dt>{{ f }}</dt><dd>{{ item[f] }}</dd>{% endif %}
+  {% endfor %}
+  {% if item.tmdb_id and item.tmdb_id > 0 %}
+  {# The match the genre and director came from, so a wrong film is one tap to see. #}
+  <dt>tmdb</dt><dd><a href="https://www.themoviedb.org/movie/{{ item.tmdb_id }}" rel="noreferrer">the film matched</a></dd>
+  {% elif item.tmdb_id == 0 %}
+  <dt>tmdb</dt><dd>no film matched the title</dd>
+  {% elif item.tmdb_id == -1 %}
+  <dt>tmdb</dt><dd>genre and director set by hand</dd>
+  {% endif %}
+  {% if item.paid_price is not none and not latest %}
+  <dt>paid</dt><dd>{{ "%.2f" | format(item.paid_price) }}{% if item.paid_on %} on {{ item.paid_on }}{% endif %}</dd>
+  {% endif %}
+  <dt>added</dt><dd>{{ item.created_at | day }}</dd>
+</dl>
+</section>
+{% endblock %}

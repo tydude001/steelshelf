@@ -1,0 +1,16 @@
+{
+  "name": "steelshelf",
+  "short_name": "steelshelf",
+  "description": "Photograph a steelbook, log it, value it.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0A0F1C",
+  "theme_color": "#0E1A33",
+  "icons": [
+    {"src": "/static/mark.svg", "sizes": "any", "type": "image/svg+xml"},
+    {"src": "/static/icon-192.png", "sizes": "192x192", "type": "image/png"},
+    {"src": "/static/icon-512.png", "sizes": "512x512", "type": "image/png"},
+    {"src": "/static/icon-maskable-512.png", "sizes": "512x512", "type": "image/png",
+     "purpose": "maskable"}
+  ]
+}

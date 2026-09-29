@@ -1,0 +1,8 @@
+# Tool config only — deps are pinned in requirements*.txt (the Docker image
+# installs requirements.txt; the local .venv adds requirements-dev.txt).
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
