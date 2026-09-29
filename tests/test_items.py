@@ -402,3 +402,10 @@ def test_a_soldcomps_price_is_labelled_sold(admin, monkeypatch):
         assert "sold ~42.00 USD" in admin.get("/").text
     finally:
         app.dependency_overrides.pop(get_sold_pricing, None)
+
+
+def test_price_buttons_say_they_are_working(admin, monkeypatch):
+    monkeypatch.setattr(settings_module.settings, "sold_lookup_enabled", True)
+    page = admin.get(post_item(admin).headers["location"]).text
+    assert 'data-wait="Fetching prices…"' in page
+    assert 'data-wait="Searching eBay sold listings…"' in page
