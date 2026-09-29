@@ -86,6 +86,7 @@ from app.identify import (
 )
 from app.pricing import (
     MANUAL_SOLD,
+    SOLD_FRESH,
     SOLD_SOURCES,
     EbayKeyword,
     PricingError,
@@ -94,6 +95,7 @@ from app.pricing import (
     SerpApiSold,
     SoldComps,
     confidence,
+    current_worth,
     fits_condition,
     is_opened,
     parse_prices,
@@ -450,30 +452,39 @@ def _basis(items) -> str:
 
 
 def _shelf_floor(items) -> list[dict]:
-    """Sum of each item's latest median, one total per currency, largest first.
+    """Sum of what each item is worth, one total per currency, largest first.
 
+    Each total splits into what sold prices and asks make of it (`sold`, `asks`).
     Beside it, what was paid: `paid` over the items with a paid price, and `gain`
     (worth minus paid) over the ones that have both a price and a paid price,
-    with `n_gain` saying how many that is.
+    with `n_gain` saying how many that is. A paid price is in its item's valuation
+    currency; an unpriced item's counts toward the largest total's.
     """
     totals: dict[str, dict] = {}
     for it in items:
         if it["latest_median"] is None:
             continue
-        t = totals.setdefault(it["latest_currency"], {"currency": it["latest_currency"],
-                                                      "total": 0.0, "n": 0, "paid": 0.0,
-                                                      "n_paid": 0, "gain": 0.0, "n_gain": 0})
+        t = totals.setdefault(it["latest_currency"], {
+            "currency": it["latest_currency"], "total": 0.0, "n": 0, "sold": 0.0,
+            "n_sold": 0, "asks": 0.0, "paid": 0.0, "n_paid": 0, "gain": 0.0, "n_gain": 0})
         t["total"] += it["latest_median"]
         t["n"] += 1
+        if it["latest_source"] in SOLD_SOURCES:
+            t["sold"] += it["latest_median"]
+            t["n_sold"] += 1
+        else:
+            t["asks"] += it["latest_median"]
         if it["paid_price"] is not None:
             t["gain"] += it["latest_median"] - it["paid_price"]
             t["n_gain"] += 1
-    for t in totals.values():
-        for it in items:
-            if it["paid_price"] is not None:
-                t["paid"] += it["paid_price"]
-                t["n_paid"] += 1
-    return sorted(totals.values(), key=lambda t: -t["n"])
+    ranked = sorted(totals.values(), key=lambda t: -t["n"])
+    for it in items:
+        if it["paid_price"] is None or not ranked:
+            continue
+        t = totals.get(it["latest_currency"]) or ranked[0]
+        t["paid"] += it["paid_price"]
+        t["n_paid"] += 1
+    return ranked
 
 
 def _add_page(
@@ -665,9 +676,11 @@ def item_page(request: Request, item_id: int, error: str | None = None):
         if item is None:
             raise HTTPException(404, "no such item")
         valuations = db.item_valuations(conn, item_id)
-        # The listings shown are the ones behind the latest fetched price.
-        shown = next((v for v in valuations if v["n_listings"]), None)
-        listings = db.valuation_listings(conn, shown["id"]) if shown else []
+        # The price shown is the one the shelf counts; the listings are the ones behind
+        # it, or with no price, behind the last fetch that found any.
+        shown = current_worth(valuations)
+        listed = shown or next((v for v in valuations if v["n_listings"]), None)
+        listings = db.valuation_listings(conn, listed["id"]) if listed else []
         missed = reprice.item_note(conn, item_id)
         status = reprice_status(conn, request.app.state.scheduler)
         ctx = {
@@ -683,6 +696,9 @@ def item_page(request: Request, item_id: int, error: str | None = None):
             "sold_lookup": settings.sold_lookup_enabled,
             "gain": _gain(item, shown),
             "latest": shown,
+            "newer_ask": shown is not None and valuations[0]["id"] != shown["id"]
+            and valuations[0]["median"] is not None and valuations[0],
+            "sold_until": _sold_until(shown),
             "sold": bool(shown) and shown["source"] in SOLD_SOURCES,
             "sold_fit": _sold_fit(item, shown, listings),
             "confidence": shown and confidence(
@@ -692,6 +708,14 @@ def item_page(request: Request, item_id: int, error: str | None = None):
                                    if v["median"] is not None]),
         }
     return TEMPLATES.TemplateResponse(request, "item.html", ctx)
+
+
+def _sold_until(latest) -> str | None:
+    """The day a sold price stops outranking newer asks; None for an ask."""
+    if not latest or latest["source"] not in SOLD_SOURCES:
+        return None
+    until = datetime.fromisoformat(latest["fetched_at"]) + SOLD_FRESH
+    return present.day(until.strftime("%Y-%m-%d %H:%M:%S"))
 
 
 def _sold_fit(item, latest, listings) -> bool | None:

@@ -95,6 +95,12 @@
   <p class="small" style="margin: 0"><strong>Price of sealed copies</strong> — not enough
     opened ones for sale. Yours is opened, so it's likely worth less.</p>
   {% endif %}
+  {% if newer_ask %}
+  <p class="small" style="margin: 0"><strong>A sold price outranks a newer ask.</strong>
+    <span class="muted">An ask of {{ "%.2f" | format(newer_ask.median) }} came
+    {{ newer_ask.fetched_at | day }}; this sold price counts until {{ sold_until }}, when
+    eBay's sold search would no longer see its sales.</span></p>
+  {% endif %}
   {% if latest.source == "manual_sold" %}
   <p class="small" style="margin: 0"><strong>Entered by hand, not live.</strong> These are
     the sold prices you typed in on {{ latest.fetched_at | day }}; they stay put until you
@@ -104,7 +110,8 @@
   <div>
     <div class="muted small">Worth about</div>
     <div class="display">—</div>
-    <div class="small muted">Not priced yet.</div>
+    <div class="small muted">{% if valuations %}No price: the last fetch counted no
+      listings.{% else %}Not priced yet.{% endif %}</div>
   </div>
   {% endif %}
   {% if error %}<p class="errors" style="margin: 0">{{ error }}</p>{% endif %}

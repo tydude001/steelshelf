@@ -17,7 +17,7 @@
       {% else %}
       <span class="display">—</span>
       {% endfor %}
-      <span class="sub">{% if floor %}each one's latest median · {{ basis }}{% else %}no prices yet{% endif %}</span>
+      <span class="sub">{% if floor %}each one's median · {% if floor[0].n_sold and floor[0].asks %}{{ "{:,.0f}".format(floor[0].sold) }} from sold prices, {{ "{:,.0f}".format(floor[0].asks) }} from asks{% else %}{{ basis }}{% endif %}{% else %}no prices yet{% endif %}</span>
     </div>
     {% for f in floor if f.n_paid %}
     <div class="tile gain">

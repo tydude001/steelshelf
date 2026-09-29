@@ -19,6 +19,7 @@ import sqlite3
 from dataclasses import dataclass, field
 
 from app import present
+from app.pricing import current_worth
 from app.spine import SLIP_RATIO
 
 # key → (label on the chip, groups the shelf?)
@@ -145,21 +146,24 @@ def most_valuable(items: list[sqlite3.Row], n: int = 5) -> list[sqlite3.Row]:
 def value_over_time(history: list[sqlite3.Row], currency: str) -> list[tuple[str, float]]:
     """The shelf's total after each day that had a fetch, as (last stamp that day, total).
 
-    Walks the valuations oldest first keeping each item's latest median, the way
-    the shelf total is summed, so the last point is today's total: a fetch that
-    found nothing takes its item out, as it does from the total. Days are local.
+    Walks the valuations oldest first and, after each, sums every item's
+    `pricing.current_worth` as it stood at that moment — the rule the shelf total
+    uses — so the last point is today's total: a fetch that found nothing takes its
+    item out, and a sold price holds against later asks until it ages out. Days are
+    local.
     """
-    latest: dict[int, float] = {}
+    seen: dict[int, list] = {}  # item → its valuations so far, newest first
     days: dict[str, tuple[str, float]] = {}
     for v in history:
         if v["currency"] != currency:
             continue
-        if v["median"] is None:
-            latest.pop(v["item_id"], None)
-        else:
-            latest[v["item_id"]] = v["median"]
+        seen.setdefault(v["item_id"], []).insert(0, v)
+        total = 0.0
+        for vals in seen.values():
+            worth = current_worth(vals, v["fetched_at"])
+            total += worth["median"] if worth else 0.0
         day = present.local_date(v["fetched_at"])
-        days[day] = (v["fetched_at"], round(sum(latest.values()), 2))
+        days[day] = (v["fetched_at"], round(total, 2))
     return list(days.values())
 
 

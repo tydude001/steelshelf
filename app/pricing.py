@@ -30,6 +30,7 @@ import sqlite3
 import statistics
 import time
 from dataclasses import dataclass, replace
+from datetime import UTC, datetime, timedelta
 from typing import NamedTuple, Protocol
 
 import httpx
@@ -645,6 +646,41 @@ def toggle_listing(conn: sqlite3.Connection, item_id: int, listing_id: int) -> i
 MANUAL_SOLD = "manual_sold"
 SOLD_SOURCES = (MANUAL_SOLD, "serpapi_sold", "soldcomps_sold")  # the sources that are sold prices, not asks
 _PRICE = re.compile(r"\$?(\d+(?:\.\d{1,2})?)")
+
+# How long a sold price outranks a newer ask: eBay's sold search looks back about 90
+# days, so a sale older than that is one a fresh lookup would no longer see.
+SOLD_FRESH = timedelta(days=90)
+
+
+def _stamp(when: datetime) -> str:
+    """A moment as SQLite's `datetime('now')` stamps it: UTC, no zone."""
+    return when.astimezone(UTC).strftime("%Y-%m-%d %H:%M:%S")
+
+
+def current_worth(valuations, now: str | None = None):
+    """Which of an item's valuations (newest first) is what the item is worth, or None.
+
+    The one rule every page and job reads. The item's newest sold price counts while
+    it is under `SOLD_FRESH` old at `now` (a UTC stamp; default the present), whatever
+    asks came after it; otherwise the newest valuation does. A newest valuation that
+    found nothing is an item with no price — the owner's "none of these" — and a
+    sold lookup that found nothing hands the item back to its asks. None when the
+    item has never been priced, or its deciding valuation priced nothing.
+    """
+    if not valuations:
+        return None
+    cutoff = _stamp(
+        (datetime.fromisoformat(now).replace(tzinfo=UTC) if now else datetime.now(UTC))
+        - SOLD_FRESH)
+    for v in valuations:
+        if dict(v).get("source") in SOLD_SOURCES:
+            if v["median"] is not None and v["fetched_at"] >= cutoff:
+                return v
+            break
+    newest = next((v for v in valuations
+                   if v["median"] is not None or dict(v).get("source") not in SOLD_SOURCES),
+                  None)
+    return newest if newest is not None and newest["median"] is not None else None
 
 
 def parse_prices(text: str) -> list[float]:

@@ -6,7 +6,8 @@ next — and again, daily, after one that stopped short. A run plans the items n
 priced since the cycle began, oldest price first, so a hand refresh after the 25th
 saves a search and whatever a stopped run did not reach goes first next time.
 An item whose latest price was typed in by hand is left alone: that price stays
-put until the owner enters another.
+put until the owner enters another. A sold price looked up (not typed) is re-priced,
+but a newer ask does not outrank it until it is `SOLD_FRESH` old (`current_worth`).
 
 SerpApi's free plan is 250 searches a month and a run of the shelf costs one per
 item, so with SerpApi the run reads the account's count first (the Account API is
@@ -31,7 +32,14 @@ from datetime import UTC, datetime, timedelta
 import httpx
 
 from app import db
-from app.pricing import MANUAL_SOLD, PricingError, PricingSource, append_quote, fetch_quote
+from app.pricing import (
+    MANUAL_SOLD,
+    PricingError,
+    PricingSource,
+    append_quote,
+    current_worth,
+    fetch_quote,
+)
 
 log = logging.getLogger("steelshelf.reprice")
 
@@ -84,18 +92,18 @@ def due(conn: sqlite3.Connection, now: datetime, day: int, hour: int) -> str | N
 
 def planned(conn: sqlite3.Connection, since: str) -> list[int]:
     """Item ids with no price since `since` (UTC), oldest price first, never-priced first.
-    Items whose latest price was typed in by hand are left out."""
-    rows = conn.execute(
-        """
-        SELECT i.id, v.fetched_at, v.source
-        FROM items i LEFT JOIN valuations v ON v.id = (
-            SELECT id FROM valuations WHERE item_id = i.id
-            ORDER BY fetched_at DESC, id DESC LIMIT 1)
-        ORDER BY v.fetched_at IS NOT NULL, v.fetched_at, i.id
-        """
-    ).fetchall()
-    return [r["id"] for r in rows
-            if r["source"] != MANUAL_SOLD and (r["fetched_at"] is None or r["fetched_at"] < since)]
+    Items worth a price typed in by hand (`current_worth`) are left out."""
+    vals = db.valuations_by_item(conn)
+    rows = []
+    for (item_id,) in conn.execute("SELECT id FROM items"):
+        mine = vals.get(item_id, [])
+        worth = current_worth(mine)
+        if worth is not None and worth["source"] == MANUAL_SOLD:
+            continue
+        newest = mine[0]["fetched_at"] if mine else None
+        if newest is None or newest < since:
+            rows.append((newest is not None, newest or "", item_id))
+    return [item_id for _, _, item_id in sorted(rows)]
 
 
 def searches_left(api_key: str, http: httpx.Client | None = None) -> int:

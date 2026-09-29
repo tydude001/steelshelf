@@ -77,7 +77,10 @@ CREATE TABLE IF NOT EXISTS valuations (
     n_listings  INTEGER,
     currency    TEXT NOT NULL DEFAULT 'USD',
     fetched_at  TEXT NOT NULL DEFAULT (datetime('now')),
-    via         TEXT                -- 'monthly' | NULL (by hand)
+    via         TEXT,               -- 'monthly' | NULL (by hand)
+    matched     TEXT                -- how its listings were matched to the edition:
+                                    -- upc|judged|keywords|retailer+region|retailer|
+                                    -- region|all; NULL typed in or from before
 );
 CREATE INDEX IF NOT EXISTS idx_valuations_item ON valuations(item_id, fetched_at);
 
@@ -133,7 +136,7 @@ ADDED_COLUMNS = {"items": [("spine_color", "TEXT"), ("paid_price", "REAL"), ("pa
                            ("spine_box", "TEXT"), ("spine_ratio", "REAL"),
                            ("spine_reads", "INTEGER"), ("spine_choice", "TEXT"),
                            ("genre", "TEXT"), ("director", "TEXT"), ("tmdb_id", "INTEGER")],
-                 "valuations": [("via", "TEXT")]}
+                 "valuations": [("via", "TEXT"), ("matched", "TEXT")]}
 
 
 def init_db(path: str) -> None:
@@ -342,31 +345,51 @@ def items_to_review(conn: sqlite3.Connection) -> list[tuple[sqlite3.Row, list[st
     return [(r, [f for f in REVIEW_FIELDS if not r[f]]) for r in rows]
 
 
-def list_items(conn: sqlite3.Connection) -> list[sqlite3.Row]:
-    """Every item with its front photo id and its latest valuation, newest first.
+def valuations_by_item(conn: sqlite3.Connection) -> dict[int, list[sqlite3.Row]]:
+    """Every valuation, grouped by item, newest first within each."""
+    by_item: dict[int, list[sqlite3.Row]] = {}
+    for v in conn.execute("SELECT * FROM valuations ORDER BY fetched_at DESC, id DESC"):
+        by_item.setdefault(v["item_id"], []).append(v)
+    return by_item
 
-    `latest_*` are that valuation's median, currency, source, low, high, listing
-    count and moment; all NULL for an item never priced.
+
+# The worth's columns, as list_items names them.
+LATEST = {"median": "latest_median", "currency": "latest_currency", "source": "latest_source",
+          "low": "latest_low", "high": "latest_high", "n_listings": "latest_n",
+          "fetched_at": "latest_fetched_at", "matched": "latest_matched"}
+
+
+def list_items(conn: sqlite3.Connection) -> list[dict]:
+    """Every item with its front photo id and what it is worth, newest first.
+
+    `latest_*` are the valuation `pricing.current_worth` picks — median, currency,
+    source, low, high, listing count, moment and how the listings were matched —
+    all None for an item with no price.
     """
-    return conn.execute(
+    from app.pricing import current_worth
+
+    vals = valuations_by_item(conn)
+    rows = conn.execute(
         """
         SELECT i.*,
                (SELECT p.id FROM photos p WHERE p.item_id = i.id AND p.kind = 'front'
-                ORDER BY p.id LIMIT 1) AS front_photo_id,
-               v.median AS latest_median, v.currency AS latest_currency,
-               v.source AS latest_source, v.low AS latest_low, v.high AS latest_high,
-               v.n_listings AS latest_n, v.fetched_at AS latest_fetched_at
+                ORDER BY p.id LIMIT 1) AS front_photo_id
         FROM items i
-        LEFT JOIN valuations v ON v.id = (
-            SELECT id FROM valuations WHERE item_id = i.id
-            ORDER BY fetched_at DESC, id DESC LIMIT 1)
         ORDER BY i.created_at DESC, i.id DESC
         """
     ).fetchall()
+    items = []
+    for r in rows:
+        worth = current_worth(vals.get(r["id"], []))
+        items.append({**dict(r), **{name: worth[col] if worth else None
+                                    for col, name in LATEST.items()}})
+    return items
 
 
 def valuation_history(conn: sqlite3.Connection) -> list[sqlite3.Row]:
-    """Every valuation's item, median and moment, oldest first — the shelf's history."""
+    """Every valuation's item, source, median and moment, oldest first — the shelf's
+    history."""
     return conn.execute(
-        "SELECT item_id, median, currency, fetched_at FROM valuations ORDER BY fetched_at, id"
+        "SELECT id, item_id, source, median, currency, fetched_at FROM valuations"
+        " ORDER BY fetched_at, id"
     ).fetchall()

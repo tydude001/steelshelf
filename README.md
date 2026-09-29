@@ -84,7 +84,14 @@ DATABASE_PATH=demo/steelshelf.db PHOTO_DIR=demo/photos REPRICE_ENABLED=false \
    sets the paid price against the worth, and the shelf sums both.
 4. **Value.** A background job asks a pricing source for comps and appends a
    `valuations` row — never overwrites — so the shelf's total is a line over
-   time, not a snapshot. Every fetched row keeps the listings it was counted
+   time, not a snapshot. What an item is worth is one rule,
+   `pricing.current_worth`, read by the shelf total, the item page, `/stats`,
+   the value chart and the monthly re-price alike: its newest sold price while
+   that is under 90 days old (eBay's sold window) — a later ask does not
+   outrank it — and otherwise its newest valuation. A fetch of asks that found
+   nothing leaves the item unpriced; a sold lookup that found nothing hands it
+   back to its asks. The shelf's value tile splits the total into what sold
+   prices and asks make of it. Every fetched row keeps the listings it was counted
    from (`listings` table), shown on the item page with a link each. **Not
    this one** sets a listing aside by its eBay item id: the price is
    re-counted from the rest as a new row, and that id stays out of every
