@@ -52,8 +52,9 @@ the owner's front counts. Condition does not matter here.
 retailer's or label's, another country's, another format's, a plain case where the \
 owner's is a box set, or a non-steelbook release.
 - not_one: not one copy of any release of the film: a lot or bundle, an empty case, \
-discs or a slip only, a poster, or a different film (a sequel, a remake of another \
-year).
+discs or a slip only, a poster, or a different film (a sequel, a remake or reboot of \
+another year, or a film whose title contains this one's — The Amazing Spider-Man is \
+not Spider-Man).
 
 Judge from the title first and the picture second; when the two leave it open, \
 answer other rather than same: a wrong same moves the price, a wrong other only \

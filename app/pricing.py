@@ -236,7 +236,12 @@ _AFTER_TITLE = {
     "dc", "marvel", "disney", "pixar", "new", "sealed", "mint", "used", "oop", "rare",
     "import", "region", "uk", "us", "german", "french", "italian", "korean", "japanese",
 }
+# What may come before it: the same words, and "the", so "NEW The Batman" and "DC The
+# Batman" are the film but "The Amazing Spider-Man" is not "Spider-Man".
+_BEFORE_TITLE = _AFTER_TITLE | {"the", "brand", "nib", "factory", "original"}
 _YEAR = re.compile(r"(19|20)\d\d")
+# A year alone in brackets names the film, "[2012]"; a bare one may be the release's.
+_BRACKETED_YEAR = re.compile(r"[\[(]\s*((?:19|20)\d\d)\s*[\])]")
 # Punctuation after a title that ends it: "The Batman (2022)", 'The Batman "Best Buy"'.
 _TITLE_END = set('()[]{},|"-\u2013\u2014')
 
@@ -251,12 +256,20 @@ def title_match(listing_title: str, title: str, year: int | None = None) -> bool
     The title's words must appear together and in order ("The Thing" also as "Thing,
     The"), then be followed by nothing, a closing mark, a year, or a word from
     `_AFTER_TITLE`. "and" is dropped from both, so "&" and "and" read the same.
-    With the film's `year`, a year right after the title must be within one of it:
-    "The Thing (2011)" is the remake, not the 1982 film.
+    Before it: the listing's start, a closing mark, one of the title's own words (a
+    seller's stutter), or a word from `_BEFORE_TITLE` — "The Amazing Spider-Man" is
+    not "Spider-Man". With the film's `year`, a year right
+    after the title, or alone in brackets anywhere, must be within one of it: "The
+    Thing (2011)" is the remake, not the 1982 film; "... SteelBook 2026" may be the
+    release's year, and is not held against it.
     """
     want = [m.group() for m in _tokens(title) if m.group() != "and"]
     if not want:
         return False
+    if year:
+        named = [int(y) for y in _BRACKETED_YEAR.findall(listing_title)]
+        if named and all(abs(y - year) > 1 for y in named):
+            return False
     forms = [want] + ([want[1:] + ["the"]] if want[0] == "the" and len(want) > 1 else [])
     text = listing_title.lower().replace("'", "")
     toks = [m for m in _tokens(listing_title) if m.group() != "and"]
@@ -266,6 +279,9 @@ def title_match(listing_title: str, title: str, year: int | None = None) -> bool
         for i in range(len(words) - n + 1):
             if words[i:i + n] != form:
                 continue
+            if i and words[i - 1] not in _BEFORE_TITLE and words[i - 1] not in form and not (
+                    _TITLE_END | {":"}) & set(text[toks[i - 1].end():toks[i].start()]):
+                continue  # a longer title that ends in this one
             if i + n == len(words):
                 return True
             gap = text[toks[i + n - 1].end():toks[i + n].start()]

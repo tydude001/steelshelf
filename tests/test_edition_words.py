@@ -27,6 +27,23 @@ def test_a_year_after_the_title_must_be_the_films():
     assert title_match("The Thing (2011) 4K Steelbook", "The Thing")  # year unknown
 
 
+def test_a_longer_title_or_another_year_anywhere_is_another_film():
+    for listing in ("The Amazing Spider-Man 4K Full Slip SteelBook MANTA LAB [2012]",
+                    "The Amazing Spider-Man Steelbook [4K UHD+2D] Double Lenticular B",
+                    "NEW The Amazing Spider-Man 4K One 1-Click SteelBook [2012] MANTA LAB"):
+        assert not title_match(listing, "Spider-Man", 2002)
+    assert not title_match("Spider-Man 4K Steelbook Manta Lab [2012]", "Spider-Man", 2002)
+    for listing in ("Spider-Man (2002) Steelbook [4K UHD+2D] Full Slip Manta Lab",
+                    "SPIDER-MAN [4K UHD + 2D] BLU-RAY STEELBOOK [MANTA LAB] FS",
+                    "NEW Spider-Man 4K Steelbook", "Steelbook: Spider-Man 4K",
+                    "The Spider-Man 4K steelbook 2002 Sam Raimi"):
+        assert title_match(listing, "Spider-Man", 2002)
+    assert title_match("Arrival (4K/Blu-ray/Digital) UHD SteelBook 2026 NEW SEALED",
+                       "Arrival", 2016)  # the release's year, not another film's
+    assert title_match("The Network The Social Network 4K SteelBook NEW SEALED",
+                       "The Social Network", 2010)  # a seller's stutter
+
+
 def test_keyword_match_uses_the_items_year(conn):  # noqa: F811
     thing = item(conn, year=1982)
     assert keyword_match("The Thing 1982 4K Steelbook", thing)
