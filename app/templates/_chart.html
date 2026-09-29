@@ -6,6 +6,7 @@
 <svg class="chart" viewBox="0 0 {{ c.width }} {{ c.height }}" role="img"
      aria-label="{{ label }}: {{ c.points | length }} point{{ 's' if c.points | length != 1 }}, latest {{ fmt.format(c.last.value) }}">
   <line class="axis" x1="6" y1="{{ c.axis }}" x2="{{ c.width - 6 }}" y2="{{ c.axis }}"/>
+  {% if c.beside and c.points | length > 1 %}<polyline class="trend beside" points="{{ c.beside_polyline }}"/>{% endif %}
   {% if c.points | length > 1 %}<polyline class="trend" points="{{ c.polyline }}"/>{% endif %}
   {% for p in c.points %}{% set mark = marks.get(p.stamp | local_date) %}<circle class="dot{% if loop.last %} last{% endif %}{% if mark %} {{ mark }}{% endif %}" cx="{{ p.x }}" cy="{{ p.y }}" r="{{ 5 if loop.last or mark == 'partial' else 3.5 }}"/>{% endfor %}
   <text class="value" x="{{ c.last.x }}" y="{{ c.last.y - 11 }}" text-anchor="middle">{{ fmt.format(c.last.value) }}</text>

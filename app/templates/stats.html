@@ -74,9 +74,10 @@
   </form>
   {% endif %}
   {% endif %}
-  <p class="muted small note">Asks only: the run never looks up sold prices. Each item is one
-    search; an item priced by hand since the {{ r.day }}th is skipped, and a price you typed in
-    stays put.</p>
+  <p class="muted small note">{% if r.sold_budget %}Sold prices first for the most valuable,
+    asks for the rest.{% else %}Asks only: the run never looks up sold prices.{% endif %} Each
+    item is one search (two when its UPC finds nothing); an item priced by hand since the
+    {{ r.day }}th is skipped, and a price you typed in stays put.</p>
   {% endif %}
 </section>
 
@@ -111,6 +112,21 @@
     {% endif %}
   </section>
 
+  {% if main %}
+  <section class="card" id="sold-vs-asks">
+    <h2>Sold prices and asks</h2>
+    <p class="small"><b>{{ "{:,.0f}".format(main.sold) }} {{ main.currency }}</b> of the value is
+      {{ main.n_sold }} item{{ "s" if main.n_sold != 1 }}' sold prices;
+      <b>{{ "{:,.0f}".format(main.asks) }}</b> is {{ main.n - main.n_sold }} item{{ "s" if main.n - main.n_sold != 1 }}' asks.</p>
+    {% set k = calibration %}
+    <p class="muted small note">{% if k.ratio is not none %}Across the {{ k.n }} items priced both
+      ways, sold prices run at {{ "%.2f" | format(k.ratio) }}× their asks (median).{% else %}{{ k.n }}
+      item{{ "s" if k.n != 1 }} {{ "has" if k.n == 1 else "have" }} both a sold price and an ask;
+      at {{ calibrate_from }} the shelf can say how far asks run above what sells. Until then the
+      asks are shown as asks, not corrected by a guess.{% endif %}</p>
+  </section>
+  {% endif %}
+
   <section class="card">
     <h2>How sure the prices are</h2>
     {% if c.priced %}
@@ -121,7 +137,7 @@
     </div>
     <ul class="key small">
       <li><i class="solid"></i><b>{{ c.solid }}</b> solid <span class="muted">· 12+ listings, close together</span></li>
-      <li><i class="fair"></i><b>{{ c.fair }}</b> fair <span class="muted">· fewer, or spread wide</span></li>
+      <li><i class="fair"></i><b>{{ c.fair }}</b> fair <span class="muted">· fewer, spread wide, or the whole film's</span></li>
       <li><i class="thin"></i><b>{{ c.thin }}</b> thin <span class="muted">· 4 or fewer</span></li>
     </ul>
     <p class="muted small note">{% if c.sold %}{{ c.sold }} backed by a sold price{% else %}None are backed by a sold price yet{% endif %}{% if c.unpriced %} · {{ c.unpriced }} not priced{% endif %}.</p>

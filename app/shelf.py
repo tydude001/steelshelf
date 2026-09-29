@@ -152,18 +152,32 @@ def value_over_time(history: list[sqlite3.Row], currency: str) -> list[tuple[str
     item out, and a sold price holds against later asks until it ages out. Days are
     local.
     """
+    return [(stamp, round(sum(worth.values()), 2)) for stamp, worth in _walk(history, currency)]
+
+
+def paid_over_time(history: list[sqlite3.Row], currency: str,
+                   paid: dict[int, float]) -> list[tuple[str, float]]:
+    """What was paid for the items counted in `value_over_time`'s total, at each of its
+    points: set beside the value, a case bought lifts both lines, a price that rose
+    lifts only the value. `paid` is item id → paid price, for the items that have one."""
+    return [(stamp, round(sum(paid.get(i, 0.0) for i in worth), 2))
+            for stamp, worth in _walk(history, currency)]
+
+
+def _walk(history, currency: str) -> list[tuple[str, dict[int, float]]]:
+    """(last stamp that day, {item: what it was worth then}) after each day with a fetch."""
     seen: dict[int, list] = {}  # item → its valuations so far, newest first
-    days: dict[str, tuple[str, float]] = {}
+    days: dict[str, tuple[str, dict[int, float]]] = {}
     for v in history:
         if v["currency"] != currency:
             continue
         seen.setdefault(v["item_id"], []).insert(0, v)
-        total = 0.0
-        for vals in seen.values():
-            worth = current_worth(vals, v["fetched_at"])
-            total += worth["median"] if worth else 0.0
-        day = present.local_date(v["fetched_at"])
-        days[day] = (v["fetched_at"], round(total, 2))
+        worth = {}
+        for item_id, vals in seen.items():
+            w = current_worth(vals, v["fetched_at"])
+            if w is not None:
+                worth[item_id] = w["median"]
+        days[present.local_date(v["fetched_at"])] = (v["fetched_at"], worth)
     return list(days.values())
 
 

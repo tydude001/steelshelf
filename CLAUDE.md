@@ -14,7 +14,8 @@ that first.
 
 ## Rules that are decisions, not oversights
 
-- **Asks are a floor; sold prices are labelled sold.** Every SerpApi source
+- **Asks are labelled asks, sold prices sold.** A median ask usually runs above
+  what sells, so it is never passed off as a sale or scaled by a guess. Every SerpApi source
   scrapes eBay, so all sit behind `SOLD_LOOKUP_ENABLED` — never on by default.
   README § Pricing source.
 - **`valuations` is append-only.** A refetch adds a row; the chart depends

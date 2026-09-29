@@ -5,6 +5,7 @@ carries its share of the largest bar (`pct`), which is what the page draws.
 """
 
 import sqlite3
+import statistics
 from dataclasses import dataclass, field
 
 from app import shelf
@@ -85,6 +86,35 @@ def certainty(items: list[sqlite3.Row]) -> Certainty:
             c.thin_items.append(it)
     c.thin_items.sort(key=lambda it: shelf.sort_title(it["title"]))
     return c
+
+
+# How many items need both a sold price and an ask before their ratio says much.
+CALIBRATE_FROM = 20
+
+
+@dataclass(frozen=True)
+class AskVsSold:
+    """Items with both a sold price and an ask: how far apart the two run."""
+
+    n: int
+    ratio: float | None  # the median of sold ÷ ask, once there are CALIBRATE_FROM
+    pairs: list[tuple[int, float, float]]  # (item id, sold median, ask median)
+
+
+def ask_vs_sold(valuations: dict[int, list]) -> AskVsSold:
+    """Each item's newest sold price against its newest ask, from its valuations (newest
+    first). The ratio waits for `CALIBRATE_FROM` items: until then the shelf shows the
+    two side by side rather than correct asks by a guess."""
+    pairs = []
+    for item_id, vals in valuations.items():
+        priced = [v for v in vals if v["median"]]
+        sold = next((v for v in priced if v["source"] in SOLD_SOURCES), None)
+        ask = next((v for v in priced if v["source"] not in SOLD_SOURCES), None)
+        if sold and ask:
+            pairs.append((item_id, sold["median"], ask["median"]))
+    ratio = (round(statistics.median(s / a for _, s, a in pairs), 2)
+             if len(pairs) >= CALIBRATE_FROM else None)
+    return AskVsSold(len(pairs), ratio, pairs)
 
 
 def _format(fmt: str | None) -> str:

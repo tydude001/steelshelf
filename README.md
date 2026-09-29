@@ -145,7 +145,9 @@ DATABASE_PATH=demo/steelshelf.db PHOTO_DIR=demo/photos REPRICE_ENABLED=false \
    label, and the items that need a look. Beside it from 960px (under it on a
    phone): the five most valuable, and the shelf's value over time — the total
    after each day with a fetch, walked from every valuation the way the total
-   is summed, so a fetch that found nothing drops its item there too.
+   is summed, so a fetch that found nothing drops its item there too — with,
+   dashed beside it, what was paid for the cases that total counts: buying a
+   case lifts both lines, a price that rose lifts only the value.
    **Spines** are the case's own spine photo where it reads (`spine.py`): at
    save, and for older items at startup, a detector straightens the photo and
    finds the case as the columns and rows that are smooth or unlike the
@@ -260,8 +262,11 @@ granted to hobby developers. The Browse API returns active listings only.
 
 **v1 uses active listings from the Browse API** (`source = 'ebay_active'`):
 free and within eBay's terms. It reports the low / median / high of current
-Buy It Now asks — a floor, not a sold price, and wrong on the high side for
-hyped titles where asks run above what clears. The pricing layer is one
+Buy It Now asks — asking prices, not sold prices. The median ask is not a
+floor: sellers list above what clears, most of all for hyped titles, so asks
+usually overstate. `/stats` sets the shelf's sold prices against its asks,
+item by item, and gives the ratio once 20 items have both; asks are never
+scaled by a guess before that. The pricing layer is one
 module behind an interface so a sold-data source can replace it later. The
 alternatives considered, in the order they would be tried:
 

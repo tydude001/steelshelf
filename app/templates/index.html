@@ -155,6 +155,11 @@
   <section class="tile">
     <h2 class="k">Shelf value over time</h2>
     {{ charts.line(over_time, "Shelf value over time", "{:,.0f}", marks) }}
+    {% if over_time.beside and over_time.points | length > 1 %}
+    <span class="sub">Solid: the value. Dashed: what you paid for the cases it counts
+      ({{ "{:,.0f}".format(over_time.beside[-1].value) }} now) — a case bought lifts both, a
+      price that rose lifts only the value.</span>
+    {% endif %}
     {% if over_time.points | length == 1 %}
     <span class="sub">One day of prices so far — a line once prices are fetched on a second day.</span>
     {% endif %}

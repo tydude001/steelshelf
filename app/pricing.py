@@ -3,8 +3,9 @@
 `EbayActive` is the low / median / high of current Buy It Now asks from
 eBay's Browse API, searched by UPC. `EbayKeyword` is the same, but falls back
 to a keyword search on the title when an item has no UPC, and filters the
-noisier results down to steelbooks of that title and format. Both are a
-floor, not a sold price — README § Pricing source has the decision and the
+noisier results down to steelbooks of that title and format. Both are asks,
+not sold prices — a median ask usually runs above what copies sell for, most
+for hyped titles. README § Pricing source has the decision and the
 order alternatives would be tried in. A new source implements
 `PricingSource` and nothing else changes.
 
@@ -124,8 +125,8 @@ class EbayActive:
     """Browse API `item_summary/search?gtin=`, fixed-price listings only.
 
     Mints its own application token (client credentials) and reuses it until
-    a minute before it expires. Item price only — shipping is not added, which
-    keeps the number a floor.
+    a minute before it expires. Item price only — shipping is not added, like every
+    other source.
     """
 
     name = "ebay_active"
@@ -445,7 +446,7 @@ def prefer_edition_sales(sales: list, item: sqlite3.Row, minimum: int = 3) -> tu
 
 
 # A sold lookup narrows to the item's edition on a single sale that names it. A sale
-# is a real price, where an ask is only a floor, and a boutique edition may sell once
+# is a real price, where an ask is only what a seller hopes for, and a boutique edition may sell once
 # or twice in eBay's 90 days: those one or two beat twenty sales of the film's other
 # steelbooks. Few sales read as thin confidence on the page.
 SOLD_EDITION_MINIMUM = 1

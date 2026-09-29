@@ -405,9 +405,7 @@ def index(request: Request, sort: str | None = None, q: str = ""):
          "basis": _basis(items),
          "biggest": shelf.shelve(items, "label")[0] if items else None,
          "top": shelf.most_valuable(items),
-         "over_time": present.line(
-             shelf.value_over_time(history, floor[0]["currency"]) if floor else [],
-             width=320, height=100),
+         "over_time": _over_time(items, history, floor),
          "marks": marks, "reprice": status},
     )
     if chosen and chosen != remembered:
@@ -420,8 +418,9 @@ def stats_page(request: Request):
     with db.connect(settings.database_path) as conn:
         items = db.list_items(conn)
         status = reprice_status(conn, request.app.state.scheduler)
+        calibration = stats.ask_vs_sold(db.valuations_by_item(conn))
     floor = _shelf_floor(items)
-    ctx = {"items": items, "main": floor[0] if floor else None,
+    ctx = {"calibration": calibration, "calibrate_from": stats.CALIBRATE_FROM,"items": items, "main": floor[0] if floor else None,
            "by_label": stats.value_by_label(items) if floor else [],
            "certainty": stats.certainty(items), "breakdowns": stats.breakdowns(items),
            "as_of": stats.as_of(items), "basis": _basis(items),
@@ -473,6 +472,18 @@ def review(request: Request):
     return TEMPLATES.TemplateResponse(
         request, "review.html",
         {"thin": thin, "checks": checks, "n_photo": n_photo, "wide": wide})
+
+
+def _over_time(items, history, floor):
+    """The shelf-value chart: its value after each day with a fetch and, beside it, what
+    was paid for the items that value counts (when any has a paid price)."""
+    if not floor:
+        return None
+    currency = floor[0]["currency"]
+    series = shelf.value_over_time(history, currency)
+    paid = {it["id"]: it["paid_price"] for it in items if it["paid_price"] is not None}
+    beside = [v for _, v in shelf.paid_over_time(history, currency, paid)] if paid else None
+    return present.line(series, width=320, height=100, beside=beside)
 
 
 def _price_kinds(items) -> dict[str, int]:

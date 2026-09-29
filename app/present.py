@@ -53,6 +53,11 @@ class Line:
     width: int
     height: int
     axis: float
+    beside: list[Point] = ()  # a second series on the same scale, when drawn with one
+
+    @property
+    def beside_polyline(self) -> str:
+        return " ".join(f"{p.x:g},{p.y:g}" for p in self.beside)
 
     @property
     def polyline(self) -> str:
@@ -70,28 +75,35 @@ class Line:
 def line(
     series: list[tuple[str, float]], width: int = 342, height: int = 96,
     pad_x: int = 28, top: int = 30, bottom: int = 24,
+    beside: list[float] | None = None,
 ) -> Line | None:
     """Place (timestamp, value) pairs, oldest first: x by time, y by value.
 
     The lowest value sits on the floor of the plot and the highest at its top;
     a flat series runs through the middle. Points that share a moment (or a
-    series of one) spread evenly instead. None for an empty series.
+    series of one) spread evenly instead. `beside`, one value per pair, is a second
+    line at the same moments on the same scale. None for an empty series.
     """
     if not series:
         return None
     times = [_local(s).timestamp() for s, _ in series]
     values = [v for _, v in series]
+    scale = values + list(beside or [])
     left, right = pad_x, width - pad_x
     floor, ceiling = height - bottom, top
     t0, span = times[0], times[-1] - times[0]
-    lo, rise = min(values), max(values) - min(values)
+    lo, rise = min(scale), max(scale) - min(scale)
     n = len(series)
-    points = []
+    points, extra = [], []
     for i, ((stamp, value), t) in enumerate(zip(series, times)):
         if span > 0:
             x = left + (t - t0) / span * (right - left)
         else:
             x = (left + right) / 2 if n == 1 else left + i / (n - 1) * (right - left)
-        y = (floor + ceiling) / 2 if rise == 0 else floor - (value - lo) / rise * (floor - ceiling)
-        points.append(Point(round(x, 1), round(y, 1), value, stamp))
-    return Line(points, width, height, axis=floor + 6)
+        def at(v):
+            return (floor + ceiling) / 2 if rise == 0 else floor - (v - lo) / rise * (floor - ceiling)
+
+        points.append(Point(round(x, 1), round(at(value), 1), value, stamp))
+        if beside:
+            extra.append(Point(round(x, 1), round(at(beside[i]), 1), beside[i], stamp))
+    return Line(points, width, height, axis=floor + 6, beside=extra)

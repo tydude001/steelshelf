@@ -159,10 +159,12 @@
   </div>
   <details class="how small">
     <summary>How this is priced</summary>
-    <p class="muted">Low / median / high of current eBay Buy It Now asks — a floor, not a sold
-    price. {% if asks_via_serpapi %}Searched by title through SerpApi
-    (<code>serpapi_active</code>), narrowed to this retailer and region when enough
-    listings name them.{% else %}Searched by UPC; with no UPC, by title
+    <p class="muted">{% if sold %}The median of eBay sales, with the middle half of them as the
+    range from five sales.{% else %}The median of current eBay Buy It Now asks — what sellers
+    ask, which usually runs above what copies sell for.{% endif %} {% if asks_via_serpapi %}Searched by title through SerpApi
+    (<code>serpapi_active</code>) — by its UPC first when it has one — and narrowed to this
+    edition: by Claude's judgement when that is on, else the listings naming its edition
+    words, retailer or region.{% else %}Searched by UPC; with no UPC, by title
     (<code>ebay_keyword</code>), which is looser.{% endif %}
     {% if latest %}This price came from <code>{{ latest.source }}</code>.{% endif %}
     A sold price, typed in or looked up, is labelled sold.</p>

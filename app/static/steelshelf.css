@@ -318,6 +318,7 @@ details.how p { margin: 6px 0 0; }
 .chart { display: block; width: 100%; height: auto; overflow: visible; }
 .chart .axis { stroke: var(--line); }
 .chart .trend { fill: none; stroke: var(--teal); stroke-width: 2; stroke-linejoin: round; }
+.chart .trend.beside { stroke: var(--muted); stroke-width: 1.5; stroke-dasharray: 4 3; }
 .chart .dot { fill: var(--teal); }
 .chart .dot.last { fill: var(--fg); }
 .chart .dot.partial { fill: var(--card); stroke: var(--bad); stroke-width: 2; }
