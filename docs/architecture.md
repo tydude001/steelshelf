@@ -76,9 +76,10 @@ decisions are in [identification.md](identification.md) and
 - `tools/` — run on the machine logged in to Claude Code, not in the image.
   `worker.py` is the identify and listing-judge worker (user unit
   `steelshelf-worker`, `:8012`, bearer secret); its docstring has the install.
-- `scripts/` — `demo.py` (the demo shelf), `set-secrets.sh` and `set-key.sh`
-  (README § Keys; their live checks in `checks.sh`), and the icon and lockup
-  renderers.
+- `scripts/` — `demo.py` (the demo shelf), `shots.py` (the README's
+  screenshots, retaken from it with Playwright), `set-secrets.sh` and
+  `set-key.sh` (README § Keys; their live checks in `checks.sh`), and the icon
+  and lockup renderers.
 - `tests/` — pytest over a throwaway SQLite DB per test (`conftest.py`); no
   network, no real `data/`.
 - `docs/` — these pages, [deploy.md](deploy.md), and the README's
