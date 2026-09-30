@@ -10,23 +10,21 @@ at a case, let Claude name the edition and the retailer exclusive, and watch
 the shelf's value from eBay listings over time. FastAPI + Jinja + HTMX,
 SQLite, one Docker container, no CDN.
 
+[Features](#features) · [Quick start](#quick-start) · [Try the demo](#try-the-demo) ·
+[Keys](#keys) · [Privacy](#privacy) · [Limitations](#limitations) ·
+[Documentation](#documentation) · [Development](#development)
+
 <p>
-  <img alt="The shelf on a desktop: twenty steelbook spines on a plank, value tiles above, the most valuable beside" src="docs/img/shelf.png" width="620">
-  <img alt="The shelf on a phone" src="docs/img/phone.png" width="190">
+  <img alt="The shelf on a desktop, sorted by format: twenty steelbook spines on three labelled planks, value tiles above, the most valuable and the shelf's value over time beside" src="docs/img/shelf.png" width="592">
+  <img alt="The shelf on a phone" src="docs/img/phone.png" width="218">
 </p>
 <p>
-  <img alt="An item page: the case, its photos, what it is worth against what was paid" src="docs/img/item.png" width="405">
-  <img alt="The stats page: value by retailer, how sure the prices are, format, region and condition" src="docs/img/stats.png" width="405">
+  <img alt="An item page: the case, its photos, what it is worth against what was paid, and its price history" src="docs/img/item.png" width="257">
+  <img alt="The stats page: value by retailer, sold prices against asks, how sure the prices are, format, region and condition" src="docs/img/stats.png" width="553">
 </p>
 
 Every screenshot is the demo shelf (`scripts/demo.py`): invented titles and
 drawn cases, since real steelbook art belongs to the studios and artists.
-The identify example below is a canned answer in the shape Claude returns,
-not a live call.
-
-[Features](#features) · [Quick start](#quick-start) · [Try the demo](#try-the-demo) ·
-[Keys](#keys) · [Privacy](#privacy) · [Limitations](#limitations) ·
-[Documentation](#documentation) · [Development](#development)
 
 ## Features
 
@@ -36,7 +34,9 @@ not a live call.
 - 🔎 **Identified for you.** The barcode is decoded locally when there is one;
   Claude reads the rest — title, format, edition, retailer exclusive or
   boutique label, region, condition — and lists what it was unsure of. You
-  check the form and save.
+  check the form and save.<br>
+  <img alt="Identify: a drawn front photo of an invented case beside the add form as identify fills it, with two doubts listed above it" src="docs/img/identify.png" width="640"><br>
+  <sub>A canned answer in the shape Claude returns, not a live call.</sub>
 - 💲 **Valued from eBay.** Current asks by default, matched to the item's own
   edition, with a range and a confidence cue. Sold prices can be typed in, or
   looked up through an optional sold-comps service.
@@ -48,8 +48,6 @@ not a live call.
   across every field.
 - 📊 **Stats.** Value by retailer or label, how sure each price is, and counts
   by format, region and condition.
-
-<p><img alt="Identify: a drawn front photo of an invented case beside the add form as identify fills it, with two doubts listed above it" src="docs/img/identify.png" width="720"></p>
 
 ## Quick start
 
