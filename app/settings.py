@@ -30,7 +30,7 @@ class Settings(BaseSettings):
     ai_provider: Literal["anthropic", "openai"] = "anthropic"
 
     anthropic_api_key: str = ""
-    anthropic_model: str = "claude-sonnet-5"
+    anthropic_model: str = "claude-sonnet-5-5"
 
     # Claude judges which of a title search's listings are the item's edition
     # (app/judge.py): on the worker when WORKER_URL is set, else the API. Off by

@@ -135,7 +135,7 @@ manager. Never in git.
      closing the dialog.
   2. The account needs credits (**Billing**). The script's check proves the
      key and the model, not the balance.
-  3. `ANTHROPIC_MODEL` defaults to `claude-sonnet-5`; the script 404s on a
+  3. `ANTHROPIC_MODEL` defaults to `claude-sonnet-5-5`; the script 404s on a
      model the key can't see.
 - **Claude Code worker** (optional) — `WORKER_URL` and `WORKER_SECRET`, the
   bearer secret in the worker machine's `~/.config/steelshelf-worker.env`.

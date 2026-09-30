@@ -14,7 +14,7 @@ check_ebay() {
 }
 
 check_anthropic() {
-  local model="${val[ANTHROPIC_MODEL]:-claude-sonnet-5}" code
+  local model="${val[ANTHROPIC_MODEL]:-claude-sonnet-5-5}" code
   code="$(printf 'header = "x-api-key: %s"\n' "${val[ANTHROPIC_API_KEY]}" |
     curl -s -o /dev/null -w '%{http_code}' -K - \
       -H 'anthropic-version: 2023-06-01' \
