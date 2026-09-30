@@ -15,12 +15,12 @@ SQLite, one Docker container, no CDN.
 [Documentation](#documentation) · [Development](#development)
 
 <p>
-  <img alt="The shelf on a desktop, sorted by format: twenty steelbook spines on three labelled planks, value tiles above, the most valuable and the shelf's value over time beside" src="docs/img/shelf.png" width="592">
-  <img alt="The shelf on a phone" src="docs/img/phone.png" width="218">
+  <img alt="The shelf on a desktop, sorted by format: twenty steelbook spines on three labelled planks, value tiles above, the most valuable and the shelf's value over time beside" src="docs/img/shelf.png" width="69.4%">
+  <img alt="The shelf on a phone" src="docs/img/phone.png" width="28.9%">
 </p>
 <p>
-  <img alt="An item page: the case, its photos, what it is worth against what was paid, and its price history" src="docs/img/item.png" width="257">
-  <img alt="The stats page: value by retailer, sold prices against asks, how sure the prices are, format, region and condition" src="docs/img/stats.png" width="553">
+  <img alt="The stats page: value by retailer, sold prices against asks, how sure the prices are, format, region and condition" src="docs/img/stats.png" width="69.4%">
+  <img alt="An item page on a phone: the case, its photos, what it is worth against what was paid, and its price history" src="docs/img/item.png" width="28.9%">
 </p>
 
 Every screenshot is the demo shelf (`scripts/demo.py`): invented titles and

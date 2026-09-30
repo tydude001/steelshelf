@@ -15,8 +15,10 @@ called. That shot is composed: the front photo that was sent sits beside the
 form, and the form's Photos fieldset is hidden to keep the doubts and the
 filled fields in frame.
 
-The README sets each image's width so a row's two shots render at one height;
-a shot whose size changes here needs its width there worked out again.
+The README lays the four page shots out as a grid, a wide one and a tall one to
+a row, at percentage widths so a row never wraps. That holds only while the two
+wide shots share one shape and the two tall ones another: change a size in
+`SHOTS` and its partner has to follow, or the rows stop matching.
 """
 
 import argparse
@@ -45,9 +47,9 @@ ITEM = "A Map of Small Rooms"  # the most valuable: a box set with a few fetches
 
 # name: path, viewport width and height in CSS px, device scale
 SHOTS = {
-    "shelf": ("/?sort=format", 1280, 1020, 1),
+    "shelf": ("/?sort=format", 1132, 1020, 1),
     "phone": ("/", 390, 844, 2),
-    "item": ("/items/{item}", 640, 1240, 2),
+    "item": ("/items/{item}", 572, 1238, 2),
     "stats": ("/stats", 960, 865, 1),
 }
 
