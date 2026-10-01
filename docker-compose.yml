@@ -2,6 +2,13 @@ services:
   steelshelf:
     build: .
     container_name: steelshelf
+    # Capped json-file logs, so the log can't grow without bound and
+    # `docker logs` stays fast whatever the host's default driver is.
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     restart: unless-stopped
     ports:
       - "8010:8010"
