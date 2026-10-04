@@ -67,6 +67,8 @@ decisions are in [identification.md](identification.md) and
     `fonts/` with their OFL licences, so page loads stay CDN-free. Every
     colour in `steelshelf.css` is a `:root` token, redefined under
     `prefers-color-scheme: dark`; `tests/test_theme.py` holds the sheet to it.
+    Pages link it as `steelshelf.css?v=<content hash>` (`css_version`), so a
+    phone's cached copy can't outlive a deploy.
 - `design/` — the touch and maskable icon masters (`design/icon/`) and the
   lockups (`design/logo/`), including the README's header, a pale banner that
   reads on light and dark themes alike. `scripts/render-icons.py` renders
