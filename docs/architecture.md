@@ -14,7 +14,8 @@ decisions are in [identification.md](identification.md) and
   - `photos.py` — uploads on disk as `PHOTO_DIR/<item id>/<kind>-<hex>.<ext>`,
     stored relative so host and container paths both resolve; derived images
     under `PHOTO_DIR/_derived/` — a 480px thumbnail per photo, which is what
-    every page shows, a front-edge strip per item, and the spine cut from the
+    every page shows (the item page's photo viewer loads the originals), a
+    front-edge strip per item, and the spine cut from the
     spine photo — made at save, backfilled at startup off the request path,
     made on first request when missing.
   - `spine.py` — finds the case in a spine photo, cuts it, and judges whether

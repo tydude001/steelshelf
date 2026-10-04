@@ -32,6 +32,7 @@
     rgba(255,255,255,0) 78%, rgba(0,0,0,.22) 100%);
   --title-shadow: 0 1px 2px rgba(0,0,0,.85), 0 0 6px rgba(0,0,0,.6);
   --rim: rgba(255,255,255,.5); --rim-shadow: rgba(0,0,0,.3);
+  --viewer-bg: #000; --viewer-ink: #fff; --viewer-button: rgba(255,255,255,.15);  /* both schemes */
   --spine-drop: rgba(0,0,0,.35); --spine-lift: rgba(0,0,0,.3);
   --steel: linear-gradient(135deg, #F1F3F5 0%, #A9B0B8 45%, #D5DADF 55%, #8C939B 100%);
   /* Fallback case colours, for an item whose front photo gave none. */
@@ -338,6 +339,26 @@ details.how p { margin: 6px 0 0; }
 .photos figure { margin: 0; flex: 0 0 auto; }
 .photos img { height: 120px; border-radius: 10px; display: block; }
 .photos figcaption { font-size: 13px; }
+.viewer { width: 100vw; height: 100dvh; max-width: none; max-height: none; margin: 0;
+          padding: 0; border: 0; background: var(--viewer-bg); color: var(--viewer-ink); }
+.viewer::backdrop { background: var(--viewer-bg); }
+.viewer .reel { display: flex; height: 100%; overflow-x: auto; scroll-snap-type: x mandatory;
+                overscroll-behavior: contain; scrollbar-width: none; }
+.viewer .reel::-webkit-scrollbar { display: none; }
+.viewer figure { flex: 0 0 100%; margin: 0; scroll-snap-align: center;
+                 scroll-snap-stop: always; display: flex; flex-direction: column;
+                 align-items: center; justify-content: center; gap: 10px; padding: 16px; }
+.viewer img { max-width: 100%; max-height: calc(100% - 40px); object-fit: contain;
+              border-radius: 6px; }
+.viewer figcaption { font-size: 14px; opacity: .8; }
+.viewer button { position: absolute; border: 0; border-radius: 50%; width: 44px; height: 44px;
+                 background: var(--viewer-button); color: var(--viewer-ink); font-size: 30px;
+                 line-height: 1; cursor: pointer; }
+.viewer .close { top: 12px; right: 12px; }
+.viewer .step { top: 50%; transform: translateY(-50%); }
+.viewer .prev { left: 12px; }
+.viewer .next { right: 12px; }
+@media (hover: none) { .viewer .step { display: none; } }
 .value { display: grid; gap: 12px; margin-top: 8px; }
 .value .display { font-size: 44px; }
 .worth { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }

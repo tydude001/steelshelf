@@ -12,7 +12,7 @@
 {% set front = photos | selectattr("kind", "equalto", "front") | first %}
 <div class="stage">
   {% if front %}
-  <a class="case-front" href="/photos/{{ front.id }}"><img src="/photos/{{ front.id }}/thumb"
+  <a class="case-front" href="/photos/{{ front.id }}" data-view="{{ photos.index(front) }}"><img src="/photos/{{ front.id }}/thumb"
      alt="{{ item.title }}, front"></a>
   {% else %}
   <div class="case-front"><div class="noimg"></div></div>
@@ -30,11 +30,28 @@
 <div class="photos">
   {% for p in photos %}
   <figure>
-    <a href="/photos/{{ p.id }}"><img src="/photos/{{ p.id }}/thumb" alt="{{ p.kind }}"></a>
+    <a href="/photos/{{ p.id }}" data-view="{{ loop.index0 }}"><img src="/photos/{{ p.id }}/thumb" alt="{{ p.kind }}"></a>
     <figcaption class="muted">{{ p.kind }}</figcaption>
   </figure>
   {% endfor %}
 </div>
+{% endif %}
+{% if photos %}
+<dialog class="viewer" aria-label="Photos">
+  <div class="reel">
+    {% for p in photos %}
+    <figure>
+      <img src="/photos/{{ p.id }}" alt="{{ item.title }}, {{ p.kind }}" loading="lazy">
+      <figcaption>{{ p.kind }}{% if photos | length > 1 %} · {{ loop.index }} of {{ photos | length }}{% endif %}</figcaption>
+    </figure>
+    {% endfor %}
+  </div>
+  <button class="close" type="button" aria-label="Close">&times;</button>
+  {% if photos | length > 1 %}
+  <button class="step prev" type="button" aria-label="Previous photo">&lsaquo;</button>
+  <button class="step next" type="button" aria-label="Next photo">&rsaquo;</button>
+  {% endif %}
+</dialog>
 {% endif %}
 {% if photos | selectattr("kind", "equalto", "spine") | list %}
 {% set face, _ = item | spine_face %}
@@ -259,6 +276,35 @@
       setTimeout(() => button.disabled = true);
     });
   });
+  // The photo links open a swipeable viewer instead of leaving the page. Opening it adds
+  // a history entry, so the phone's back gesture closes the viewer rather than the item.
+  const viewer = document.querySelector("dialog.viewer");
+  if (viewer) {
+    const reel = viewer.querySelector(".reel");
+    const at = () => Math.round(reel.scrollLeft / reel.clientWidth);
+    const go = (i, smooth) => reel.scrollTo({ left: i * reel.clientWidth,
+                                              behavior: smooth ? "smooth" : "instant" });
+    document.querySelectorAll("a[data-view]").forEach((a) => {
+      a.addEventListener("click", (e) => {
+        e.preventDefault();
+        viewer.showModal();
+        go(+a.dataset.view, false);
+        history.pushState({ viewer: true }, "");
+      });
+    });
+    const shut = () => { if (history.state?.viewer) history.back(); else viewer.close(); };
+    addEventListener("popstate", () => { if (viewer.open) viewer.close(); });
+    viewer.addEventListener("cancel", (e) => { e.preventDefault(); shut(); });
+    viewer.querySelector(".close").addEventListener("click", shut);
+    viewer.querySelector(".prev")?.addEventListener("click", () => go(at() - 1, true));
+    viewer.querySelector(".next")?.addEventListener("click", () => go(at() + 1, true));
+    viewer.addEventListener("keydown", (e) => {
+      if (e.key === "ArrowLeft") go(at() - 1, true);
+      if (e.key === "ArrowRight") go(at() + 1, true);
+    });
+    // A tap on the backdrop around a photo closes; a tap on the photo does nothing.
+    reel.addEventListener("click", (e) => { if (e.target.tagName !== "IMG") shut(); });
+  }
   // Back from the result restores this page from cache mid-"busy"; start it over.
   addEventListener("pageshow", (e) => { if (e.persisted) location.reload(); });
 </script>
