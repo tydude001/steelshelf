@@ -339,22 +339,24 @@ details.how p { margin: 6px 0 0; }
 .photos figure { margin: 0; flex: 0 0 auto; }
 .photos img { height: 120px; border-radius: 10px; display: block; }
 .photos figcaption { font-size: 13px; }
-/* The viewer fills the screen; each photo is sized by its grid cell, never by its own pixels
-   (a 3024x4032 original as a flex item stretches in Safari). */
+/* The viewer fills the screen. Each photo is pinned inside its slide by absolute insets
+   and fitted with object-fit, so its size never comes from its own pixels: a 3024x4032
+   original sized by flex or grid shows in Safari as a zoomed-in crop. */
 .viewer { position: fixed; inset: 0; width: 100%; height: 100%; max-width: none;
           max-height: none; margin: 0; padding: 0; border: 0; overflow: hidden;
           background: var(--viewer-bg); color: var(--viewer-ink); }
 .viewer::backdrop { background: var(--viewer-bg); }
 body:has(.viewer[open]) { overflow: hidden; }
-.viewer .reel { display: flex; height: 100%; overflow-x: auto; overflow-y: hidden;
-                scroll-snap-type: x mandatory; overscroll-behavior: contain;
-                scrollbar-width: none; }
+.viewer .reel { position: absolute; inset: 0; display: flex; overflow-x: auto;
+                overflow-y: hidden; scroll-snap-type: x mandatory;
+                overscroll-behavior: contain; scrollbar-width: none; }
 .viewer .reel::-webkit-scrollbar { display: none; }
-.viewer figure { flex: 0 0 100%; width: 100%; height: 100%; margin: 0; box-sizing: border-box;
-                 display: grid; grid-template-rows: minmax(0, 1fr) auto; gap: 10px;
-                 padding: 64px 0 16px; scroll-snap-align: center; scroll-snap-stop: always; }
-.viewer img { width: 100%; height: 100%; min-width: 0; min-height: 0; object-fit: contain; }
-.viewer figcaption { font-size: 14px; opacity: .8; text-align: center; }
+.viewer figure { position: relative; flex: 0 0 100%; margin: 0;
+                 scroll-snap-align: center; scroll-snap-stop: always; }
+.viewer img { position: absolute; top: 64px; bottom: 44px; left: 0; width: 100%;
+              height: calc(100% - 108px); max-width: none; object-fit: contain; }
+.viewer figcaption { position: absolute; left: 0; right: 0; bottom: 14px; font-size: 14px;
+                     opacity: .8; text-align: center; }
 .viewer button { position: absolute; border: 0; border-radius: 50%; width: 44px; height: 44px;
                  background: var(--viewer-button); color: var(--viewer-ink); font-size: 30px;
                  line-height: 1; cursor: pointer; }

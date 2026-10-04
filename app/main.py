@@ -52,6 +52,7 @@ pricing, TMDB) run from a POST or a background job (the monthly re-price,
 `app/reprice.py`; the film lookup after a save, `app/film.py`), per the repo rule.
 """
 
+import hashlib
 import logging
 import sqlite3
 import threading
@@ -118,6 +119,10 @@ TEMPLATES.env.filters["spine_face"] = shelf.spine_face
 # The genre and director fields say TMDB fills them only when it will.
 TEMPLATES.env.globals["tmdb_on"] = lambda: bool(settings.tmdb_api_key)
 TEMPLATES.env.globals["sold_sources"] = SOLD_SOURCES
+# The stylesheet's URL carries a hash of its content, so a phone that cached the old
+# sheet fetches the new one after a deploy instead of guessing at freshness.
+TEMPLATES.env.globals["css_version"] = hashlib.sha256(
+    (Path(__file__).parent / "static" / "steelshelf.css").read_bytes()).hexdigest()[:10]
 TEMPLATES.env.globals["quartiles_from"] = QUARTILES_FROM
 # The identify buttons name who reads the photos, and whether it can search.
 TEMPLATES.env.globals["ai_name"] = lambda: (

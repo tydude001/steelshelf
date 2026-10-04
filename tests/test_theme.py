@@ -1,5 +1,6 @@
 """Every colour comes from the :root tokens, so the dark scheme can redefine it."""
 
+import hashlib
 import re
 from pathlib import Path
 
@@ -31,3 +32,9 @@ def test_templates_paint_no_colour_of_their_own():
     for page in Path("app/templates").glob("*.html"):
         text = page.read_text()
         assert not re.search(r'fill="#|stroke="#|style="[^"]*#[0-9A-Fa-f]{3}', text), page.name
+
+
+def test_the_stylesheet_url_changes_with_its_content(client):
+    # A phone keeps a cached sheet across deploys unless the URL moves.
+    digest = hashlib.sha256(CSS.encode()).hexdigest()[:10]
+    assert f'href="/static/steelshelf.css?v={digest}"' in client.get("/").text
