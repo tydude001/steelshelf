@@ -1,0 +1,22 @@
+{
+  "$comment": [
+    "Shared, versioned Claude Code config for steelshelf. The Stop hook runs",
+    "the same suite Gitea Actions runs, so a turn cannot end red locally and then",
+    "fail in CI. Logic lives once in a shared test-gate.sh (symlinked",
+    "into ~/.claude/scripts/); the command it runs is .claude/test-command. On a",
+    "machine without that script the hook is a no-op.",
+    "Session-specific permissions belong in the gitignored settings.local.json."
+  ],
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "test ! -x \"$HOME/.claude/scripts/test-gate.sh\" || exec \"$HOME/.claude/scripts/test-gate.sh\""
+          }
+        ]
+      }
+    ]
+  }
+}
