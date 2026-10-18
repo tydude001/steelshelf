@@ -12,3 +12,4 @@ venv/
 .DS_Store
 .gitmessage
 demo/
+.rebuild-pending
