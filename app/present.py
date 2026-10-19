@@ -29,6 +29,27 @@ def day(stamp: str | None) -> str:
     return f"{when.day} {when:%b %Y}"
 
 
+def on_day(date: str | None) -> str:
+    """'2021-02-24', a calendar date with no time or zone → '24 Feb 2021'. Anything
+    that is not an ISO date comes back as it was."""
+    try:
+        when = datetime.strptime(date or "", "%Y-%m-%d")
+    except ValueError:
+        return date or ""
+    return f"{when.day} {when:%b %Y}"
+
+
+SYMBOLS = {"USD": "$", "GBP": "£", "EUR": "€"}
+
+
+def money(value: float, currency: str = "USD", places: int = 0) -> str:
+    """5389.2 → '$5,389'; a currency with no symbol here keeps its code: '35 CAD'."""
+    sign = "-" if value < 0 else ""
+    amount = f"{abs(value):,.{places}f}"
+    symbol = SYMBOLS.get(currency)
+    return f"{sign}{symbol}{amount}" if symbol else f"{sign}{amount} {currency}"
+
+
 def short_day(stamp: str | None) -> str:
     """'25 Sep', for chart axes."""
     if not stamp:

@@ -88,9 +88,9 @@ def test_stats_page_renders_and_is_linked(admin, stub_pricing):  # noqa: F811
     body = page.text
     assert "<h1>The shelf in numbers</h1>" in body
     assert "2 steelbooks\n    · asks as of" in body
-    assert "Zavvi" in body and "35 USD" in body
+    assert "Zavvi" in body and "$35" in body
     assert 'title="not priced">—</span>' in body  # Heat's unnamed group
     assert "<b>1</b> fair" in body and "1 not priced" in body
-    assert "1 item names\n      no retailer" in body
+    assert "<b>No label set</b> · 1 item." in body
     assert "Most valuable" not in body  # lives in the shelf's side column only
     assert 'href="/stats"' in admin.get("/").text

@@ -83,7 +83,7 @@ def test_review_lists_the_film_wide_prices_and_the_item_page_says_so(admin, stub
     admin.post(f"{loc}/value", auth=AUTH)
     page = admin.get(loc).text
     assert "Fair confidence." in page and "every steelbook of the film" in page
-    assert "middle half from 40.00" in page
+    assert "middle half from $40.00" in page
     review = admin.get("/review").text
     assert "Priced across the whole film" in review and "Arrival" in review
     assert "52 USD" in review and "no\n      retailer named" in review

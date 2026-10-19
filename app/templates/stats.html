@@ -2,10 +2,10 @@
 {% block title %}The shelf in numbers — steelshelf{% endblock %}
 {% block body_class %} class="wide"{% endblock %}
 {% block content %}
-{% macro bars(list, fmt="{:,.0f}", cls="") %}
+{% macro bars(list, fmt="{:,.0f}", cls="", cur=none) %}
 <ul class="bars{{ ' ' ~ cls if cls }}">
   {% for b in list %}
-  <li><span class="name">{{ b.name }}</span><i style="width: {{ b.pct }}%"></i><b>{% if b.value is none %}<span class="muted" title="not priced">—</span>{% else %}{{ fmt.format(b.value) }}{% endif %}</b></li>
+  <li{% if b.name == "not given" %} class="gap"{% endif %}><span class="name">{{ b.name }}</span><i style="width: {{ b.pct }}%"></i><b>{% if b.value is none %}<span class="muted" title="not priced">—</span>{% elif cur %}{{ b.value | money(cur) }}{% else %}{{ fmt.format(b.value) }}{% endif %}</b></li>
   {% endfor %}
 </ul>
 {% endmacro %}
@@ -16,7 +16,7 @@
     · {{ basis }}{% if as_of %} as of {{ as_of | day }}{% endif %}</span>
 </div>
 
-{% set r = reprice %}
+{% macro reprice_card(r) %}
 {% set last = r.last %}
 <section class="card reprice{% if last and last.stopped %} stopped{% endif %}" id="reprice">
   <div class="reprice-head">
@@ -80,53 +80,59 @@
     {{ r.day }}th is skipped, and a price you typed in stays put.</p>
   {% endif %}
 </section>
-
-{% if films.on and items %}
-{% set f = films %}
-<section class="card films" id="films">
-  <h2>Genre and director</h2>
-  <p class="small">{{ f.matched }} matched on TMDB{% if f.none %} · {{ f.none }} with no match{% endif %}{% if f.by_hand %} · {{ f.by_hand }} set by hand{% endif %}{% if f.waiting %} · {{ f.waiting }} still to look up{% endif %}</p>
-  {% if not f.waiting %}
-  <form method="post" action="/films/refetch">
-    <button class="btn tiny" type="submit">Look up every film again</button>
-  </form>
-  {% endif %}
-  <p class="muted small note">Fetches every case's genre and director from TMDB afresh, in the
-    background. A case whose genre or director you typed keeps them; clear both on its edit
-    form to hand it back to TMDB.</p>
-</section>
-{% endif %}
+{% endmacro %}
+{% if reprice.last and reprice.last.stopped %}{{ reprice_card(reprice) }}{% endif %}
 
 {% if not items %}
 <p class="muted">Nothing on the shelf yet. <a href="/add">Photograph your first steelbook.</a></p>
 {% else %}
+{% if main %}
+<div class="kpis" id="sold-vs-asks">
+  <div class="tile">
+    <span class="k">Worth about</span>
+    <span class="display">{{ main.total | money(main.currency) }}</span>
+    <span class="sub">{{ main.n }} priced</span>
+  </div>
+  <div class="tile">
+    <span class="k">From sold prices</span>
+    <span class="display">{{ main.sold | money(main.currency) }}</span>
+    <span class="sub">{{ main.n_sold }} priced from sales</span>
+  </div>
+  <div class="tile">
+    <span class="k">From asks</span>
+    <span class="display">{{ main.asks | money(main.currency) }}</span>
+    <span class="sub">{{ main.n - main.n_sold }} priced from asking prices</span>
+  </div>
+  {% set k = calibration %}
+  <div class="tile">
+    <span class="k">Sales run at</span>
+    <span class="display">{% if k.ratio is not none %}{{ "%.2f" | format(k.ratio) }}×{% else %}—{% endif %}</span>
+    <span class="sub">{% if k.ratio is not none %}the asking price, median of {{ k.n }} items
+      priced both ways{% else %}{{ k.n }} item{{ "s" if k.n != 1 }} {{ "has" if k.n == 1 else "have" }}
+      both a sale and an ask; at {{ calibrate_from }} the shelf can say how far asks run above
+      what sells{% endif %}</span>
+  </div>
+</div>
+{% endif %}
+
 <div class="stats">
   <section class="card">
-    <h2>Value by retailer or label</h2>
-    {% if by_label %}
-    {{ bars(by_label, "{:,.0f} " ~ main.currency, "wide-names") }}
-    {% else %}<p class="muted small">No prices yet.</p>{% endif %}
+    <h2>Value by label</h2>
+    {% set named = by_label | rejectattr("name", "equalto", no_label_name) | list %}
+    {% set unnamed = by_label | selectattr("name", "equalto", no_label_name) | first %}
+    {% if named %}
+    {{ bars(named, "{:,.0f}", "wide-names", main.currency) }}
+    {% elif not unnamed %}<p class="muted small">No prices yet.</p>{% endif %}
     {% if no_label %}
-    <p class="muted small note">{{ no_label }} item{{ "s" if no_label != 1 }} name{{ "s" if no_label == 1 }}
-      no retailer. Naming one narrows their price search.</p>
+    <div class="unnamed small">
+      <span><b>No label set</b> · {{ no_label }} item{{ "s" if no_label != 1 }}. Naming one
+        narrows its price search.</span>
+      <b>{% if unnamed and unnamed.value is not none %}{{ unnamed.value | money(main.currency) }}{% else %}<span class="muted" title="not priced">—</span>{% endif %}</b>
+    </div>
     {% endif %}
   </section>
 
-  {% if main %}
-  <section class="card" id="sold-vs-asks">
-    <h2>Sold prices and asks</h2>
-    <p class="small"><b>{{ "{:,.0f}".format(main.sold) }} {{ main.currency }}</b> of the value is
-      {{ main.n_sold }} item{{ "s" if main.n_sold != 1 }}' sold prices;
-      <b>{{ "{:,.0f}".format(main.asks) }}</b> is {{ main.n - main.n_sold }} item{{ "s" if main.n - main.n_sold != 1 }}' asks.</p>
-    {% set k = calibration %}
-    <p class="muted small note">{% if k.ratio is not none %}Across the {{ k.n }} items priced both
-      ways, sold prices run at {{ "%.2f" | format(k.ratio) }}× their asks (median).{% else %}{{ k.n }}
-      item{{ "s" if k.n != 1 }} {{ "has" if k.n == 1 else "have" }} both a sold price and an ask;
-      at {{ calibrate_from }} the shelf can say how far asks run above what sells. Until then the
-      asks are shown as asks, not corrected by a guess.{% endif %}</p>
-  </section>
-  {% endif %}
-
+  <div class="col">
   <section class="card">
     <h2>How sure the prices are</h2>
     {% if c.priced %}
@@ -156,12 +162,38 @@
   </section>
 
   <section class="card">
-    <h2>Format · Region · Condition</h2>
-    {% for heading, list in breakdowns.items() %}
-    <h3 class="k">{{ heading }}</h3>
-    {{ bars(list, "{:,.0f}", "counts") }}
-    {% endfor %}
+    <h2>What's on it</h2>
+    <div class="breakdowns">
+      {% for heading, list in breakdowns.items() %}
+      <div>
+        <h3 class="k">{{ heading }}</h3>
+        {{ bars(list, "{:,.0f}", "counts") }}
+      </div>
+      {% endfor %}
+    </div>
   </section>
+  </div>
 </div>
 {% endif %}
+
+<h2 class="section">Housekeeping</h2>
+<div class="housekeeping">
+{% if not (reprice.last and reprice.last.stopped) %}{{ reprice_card(reprice) }}{% endif %}
+{% if films.on and items %}
+{% set f = films %}
+<section class="card films" id="films">
+  <h2>Genre and director</h2>
+  <p class="small">{{ f.matched }} matched on TMDB{% if f.none %} · {{ f.none }} with no match{% endif %}{% if f.by_hand %} · {{ f.by_hand }} set by hand{% endif %}{% if f.waiting %} · {{ f.waiting }} still to look up{% endif %}</p>
+  {% if not f.waiting %}
+  <form method="post" action="/films/refetch">
+    <button class="btn tiny" type="submit">Look up every film again</button>
+  </form>
+  {% endif %}
+  <p class="muted small note">Fetches every case's genre and director from TMDB afresh, in the
+    background. A case whose genre or director you typed keeps them; clear both on its edit
+    form to hand it back to TMDB.</p>
+</section>
+{% endif %}
+
+</div>
 {% endblock %}

@@ -48,6 +48,23 @@ def test_day_is_the_date_only_in_the_local_zone(monkeypatch):
     time.tzset()
 
 
+def test_a_paid_date_is_a_calendar_date_with_no_zone(monkeypatch):
+    monkeypatch.setenv("TZ", "America/New_York")
+    time.tzset()
+    assert present.on_day("2021-02-24") == "24 Feb 2021"  # not shifted to the 23rd
+    monkeypatch.delenv("TZ")
+    time.tzset()
+    assert present.on_day("last spring") == "last spring" and present.on_day(None) == ""
+
+
+def test_money_has_a_symbol_where_one_is_known_and_the_code_otherwise():
+    assert present.money(5389.2) == "$5,389"
+    assert present.money(42.99, "USD", 2) == "$42.99"
+    assert present.money(-38, "USD") == "-$38"
+    assert present.money(12.5, "GBP", 2) == "£12.50"
+    assert present.money(35, "CAD") == "35 CAD"
+
+
 def test_line_puts_time_on_x_and_value_on_y():
     c = present.line([("2026-06-01 00:00:00", 10.0), ("2026-06-02 00:00:00", 30.0),
                       ("2026-06-05 00:00:00", 20.0)], width=100, height=60,
@@ -79,7 +96,7 @@ def test_value_card_says_worth_about_with_one_primary_button(admin, stub_pricing
     assert "Not priced yet." in page and "History" not in page
     admin.post(f"{loc}/value", auth=AUTH)
     page = admin.get(loc).text
-    assert "Worth about" in page and "35.00 USD" in page
+    assert "Worth about" in page and "$35.00" in page
     assert "Fair confidence." in page and "spread wide from 20 to 80" in page
     assert page.count('class="btn wide"') == 1 and "Refresh price" in page
     assert '<details class="sold-entry">' in page and '<details class="how small">' in page

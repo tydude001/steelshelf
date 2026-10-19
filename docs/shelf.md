@@ -26,8 +26,12 @@ film is one tap to see.
 
 ## Tiles and the value chart
 
-Above the shelf, a row of tiles: the shelf's value, what was paid and the
-gain, the largest label, and the items that need a look. Beside it from 960px
+Above the shelf, the value is the headline (`present.money`: a symbol for
+USD, GBP and EUR, the code for any other), with the steelbook count, what it is
+made of and the gain on what was paid under it; beside it, tiles for how many
+prices are sales (desktop only), the largest label, and the items that need a
+look, in amber. How the numbers are made folds away under them. Beside the
+shelf from 960px
 (under it on a phone): the five most valuable, and the shelf's value over
 time — the total after each day with a fetch, walked from every valuation the
 way the total is summed, so a fetch that found nothing drops its item there

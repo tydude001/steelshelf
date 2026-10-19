@@ -106,16 +106,16 @@ def test_summary_is_a_value_line_and_tiles(admin, stub_pricing):  # noqa: F811
         loc = post_item(admin, data={"title": title, "retailer": retailer}).headers["location"]
         admin.post(f"{loc}/value", auth=AUTH)
     body = admin.get("/").text
-    assert '<span class="display">105 USD</span>' in body
+    assert '<span class="display">$105</span>' in body
     assert "3 steelbooks · asks" in body
-    assert "Shelf value · 3 steelbooks" in body
-    assert "Best Buy · 2" in body and "70 USD" in body and "67% of the shelf" in body
+    assert "Your shelf is worth about" in body
+    assert "Biggest label" in body and "$70" in body and "Best Buy · 2 · 67% of the shelf" in body
     assert "Needs a look" in body
     assert "You paid" not in body  # no paid price anywhere: no paid tile
 
     post_item(admin, data={"title": "Dune", "paid_price": "20"})
     body = admin.get("/").text
-    assert '<div class="tile gain">' in body and "none of them priced yet" in body
+    assert "$20 for 1 — none of them priced yet" in body
 
 
 def test_basis_names_what_the_total_is_made_of():
@@ -178,7 +178,7 @@ def test_side_column_lists_the_top_and_draws_the_line(admin, stub_pricing):  # n
     admin.post(f"{loc}/value", auth=AUTH)
     body = admin.get("/").text
     side = body.split('<aside class="side">')[1].split("</aside>")[0]
-    assert "Most valuable" in side and f'href="{loc}"' in side and "35 USD" in side
+    assert "Most valuable" in side and f'href="{loc}"' in side and "$35" in side
     assert "Shelf value over time" in side and "a line once prices are fetched" in side
     assert "<polyline" not in side
     with db.connect(settings_module.settings.database_path) as conn:

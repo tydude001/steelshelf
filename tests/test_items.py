@@ -193,7 +193,7 @@ def test_value_appends_and_shows_on_page(admin, stub_pricing):
         assert r.status_code == 303 and r.headers["location"] == loc
     assert len(rows("SELECT * FROM valuations")) == 2
     assert "35.00" in admin.get(loc).text
-    assert "ask ~35.00 USD" in admin.get("/").text
+    assert "ask ~$35.00" in admin.get("/").text
 
 
 def test_value_error_is_shown_not_raised(admin, stub_pricing):
@@ -224,7 +224,7 @@ def test_library_shelves_a_spine_per_item_and_sums_the_floor(admin, stub_pricing
     for loc in locs:
         assert f'href="{loc}" title=' in shelf
     assert ">4K<" in shelf
-    assert "70 USD" in library  # two latest medians of 35.00
+    assert "$70" in library  # two latest medians of 35.00
 
 
 def test_sold_prices_append_and_label_the_page_and_library(admin, stub_pricing):
@@ -239,8 +239,8 @@ def test_sold_prices_append_and_label_the_page_and_library(admin, stub_pricing):
     page = admin.get(loc).text
     assert "Sold (median)" in page and "3 sales" in page
     library = admin.get("/").text
-    assert "sold ~50.00 USD" in library
-    assert "50 USD" in library
+    assert "sold ~$50.00" in library
+    assert "$50" in library
 
 
 def test_sold_prices_typo_is_shown_and_nothing_written(admin):
@@ -261,10 +261,10 @@ def test_sold_lookup_is_off_unless_enabled(admin, monkeypatch):
     app.dependency_overrides[get_sold_pricing] = lambda: StubSold()
     try:
         loc = post_item(admin).headers["location"]
-        assert "Look up eBay sold prices" not in admin.get(loc).text
+        assert "Find sold prices" not in admin.get(loc).text
         assert admin.post(f"{loc}/sold/lookup", auth=AUTH).status_code == 404
         monkeypatch.setattr(settings_module.settings, "sold_lookup_enabled", True)
-        assert "Look up eBay sold prices" in admin.get(loc).text
+        assert "Find sold prices" in admin.get(loc).text
         assert admin.post(f"{loc}/sold/lookup").status_code == 401
         r = admin.post(f"{loc}/sold/lookup", auth=AUTH, follow_redirects=False)
         assert r.status_code == 303 and r.headers["location"] == loc
@@ -342,9 +342,9 @@ def test_hand_entered_prices_are_marked_not_live(admin, stub_pricing):
     assert "Entered by hand, not live." in admin.get(typed).text
     assert "Entered by hand" not in admin.get(fetched).text
     library = admin.get("/").text
-    assert "sold ~50.00 USD · by hand" in library
-    assert "ask ~35.00 USD<" in library
-    assert "1 fetched from eBay · 1\n      entered by hand · 1 not priced" in library
+    assert "sold ~$50.00 · by hand" in library
+    assert "ask ~$35.00<" in library
+    assert "1 fetched from eBay · 1 entered by\n      hand · 1 not priced" in library
 
 
 @pytest.mark.parametrize("ebay_id, enabled, key, via_serpapi", [
@@ -399,7 +399,7 @@ def test_a_soldcomps_price_is_labelled_sold(admin, monkeypatch):
         loc = post_item(admin).headers["location"]
         admin.post(f"{loc}/sold/lookup", auth=AUTH)
         assert "Sold (median)" in admin.get(loc).text
-        assert "sold ~42.00 USD" in admin.get("/").text
+        assert "sold ~$42.00" in admin.get("/").text
     finally:
         app.dependency_overrides.pop(get_sold_pricing, None)
 

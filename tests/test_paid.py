@@ -17,7 +17,7 @@ def test_paid_price_and_date_are_saved_and_shown(admin):
     (item,) = rows("SELECT paid_price, paid_on FROM items")
     assert (item["paid_price"], item["paid_on"]) == (34.99, "2025-11-02")
     page = admin.get(loc).text
-    assert "34.99" in page and "2025-11-02" in page
+    assert "34.99" in page and "2 Nov 2025" in page
     edit = admin.get(f"{loc}/edit", auth=AUTH).text
     assert 'value="34.99"' in edit and 'value="2025-11-02"' in edit
 
@@ -53,16 +53,17 @@ def test_gain_on_the_item_page_and_the_shelf_total(admin, stub_pricing):  # noqa
         admin.post(f"{loc}/value", auth=AUTH)
 
     page = admin.get(up).text
-    assert "You paid" in page and 'class="small up">up 15.00 · 1.8×' in page
+    assert "You paid" in page and '<strong class="up">+$15.00</strong>' in page
+    assert "1.8× what you paid" in page
     page = admin.get(down).text
-    assert 'class="small down">down 15.00 · 0.7×' in page
+    assert '<strong class="down">−$15.00</strong>' in page and "0.7× what you paid" in page
 
     shelf = admin.get("/").text
-    assert "You paid 80 USD for\n      3 of them" in shelf
-    assert 'class="up">up\n      0</span> on the 2 priced' in shelf
+    assert "You paid $80 for 3\n      of them" in shelf
+    assert 'class="up">up\n      $0</span> on the 2 you paid for' in shelf
 
 
 def test_a_paid_item_without_a_price_shows_paid_in_details(admin):
     loc = post_item(admin, data={"paid_price": "12", "paid_on": "2026-02-01"}).headers["location"]
     page = admin.get(loc).text
-    assert "<dt>paid</dt><dd>12.00 on 2026-02-01</dd>" in page
+    assert "<dt>paid</dt><dd>12.00 on 1 Feb 2026</dd>" in page

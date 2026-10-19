@@ -21,8 +21,8 @@ item's edition) outranks nothing and prices the item only when nothing else
 does; one counted from fewer than three sales gives way to a newer ask
 matched to the edition. A fetch of asks that found nothing leaves the item
 unpriced; a sold lookup that found nothing hands it back to its asks. The
-shelf's value tile splits the total into what sold prices and asks make of
-it.
+shelf's "How these numbers are made" note, and the /stats cards, split the
+total into what sold prices and asks make of it.
 
 ### Listings, and setting one aside
 
@@ -34,8 +34,8 @@ still shows what was set aside.
 
 ### The item page's price
 
-The item page leads with the price as **Worth about**, what was paid and the
-gain beside it, the range — the middle half (quartiles) from five listings,
+The item page leads with the price as **Worth about**, badged Sold or Ask,
+what was paid and the gain in a strip under it, the range — the middle half (quartiles) from five listings,
 so one stray $965 ask moves neither end, else low to high — and a
 three-block confidence cue (`pricing.confidence`: thin at four listings or
 fewer, solid at twelve or more close together, fair otherwise, when the range

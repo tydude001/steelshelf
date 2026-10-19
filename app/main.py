@@ -115,6 +115,8 @@ TEMPLATES.env.filters["spine_ink"] = photos.spine_ink
 TEMPLATES.env.filters["day"] = present.day
 TEMPLATES.env.filters["short_day"] = present.short_day
 TEMPLATES.env.filters["local_date"] = present.local_date
+TEMPLATES.env.filters["on_day"] = present.on_day
+TEMPLATES.env.filters["money"] = present.money
 TEMPLATES.env.filters["spine_face"] = shelf.spine_face
 # The genre and director fields say TMDB fills them only when it will.
 TEMPLATES.env.globals["tmdb_on"] = lambda: bool(settings.tmdb_api_key)
@@ -453,6 +455,7 @@ def stats_page(request: Request):
            "certainty": stats.certainty(items), "breakdowns": stats.breakdowns(items),
            "as_of": stats.as_of(items), "basis": _basis(items),
            "no_label": sum(1 for it in items if not (it["retailer"] or "").strip()),
+           "no_label_name": shelf.NO_LABEL,
            "reprice": status, "films": _film_counts(items)}
     return TEMPLATES.TemplateResponse(request, "stats.html", ctx)
 

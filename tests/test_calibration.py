@@ -42,5 +42,6 @@ def test_stats_sets_sold_beside_asks(admin):
     loc = post_item(admin, data={"title": "Alien"}).headers["location"]
     admin.post(f"{loc}/sold", data={"prices": "40, 60"}, auth=AUTH)
     page = admin.get("/stats").text
-    assert "Sold prices and asks" in page and "<b>50 USD</b> of the value is\n      1 item" in page
-    assert "0\n      items have both" in page and "at 20 the shelf can say" in page
+    assert "From sold prices" in page
+    assert '<span class="display">$50</span>\n    <span class="sub">1 priced from sales' in page
+    assert "0 items have\n      both a sale and an ask" in page and "at 20 the shelf can say" in page

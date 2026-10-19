@@ -5,45 +5,49 @@
 {% if items %}
 {% set main = floor[0] if floor else none %}
 <section class="summary">
-  <div class="headline">
-    <span class="display">{% if main %}{{ "{:,.0f}".format(main.total) }} {{ main.currency }}{% else %}—{% endif %}</span>
-    <span class="muted small">{{ items | length }} steelbook{{ "s" if items | length != 1 }} · {{ basis }}</span>
+  <div class="hero">
+    <span class="k">Your shelf is worth about</span>
+    <span class="display">{% if main %}{{ main.total | money(main.currency) }}{% else %}—{% endif %}</span>
+    {% for f in floor[1:] %}<span class="also">and {{ f.total | money(f.currency) }}</span>{% endfor %}
+    <span class="sub">{{ items | length }} steelbook{{ "s" if items | length != 1 }} · {{ basis }}</span>
+    {% for f in floor if f.n_paid %}
+    <span class="sub">{% if f.n_gain %}<span class="{{ 'up' if f.gain >= 0 else 'down' }}">{{ "up" if f.gain >= 0 else "down" }}
+      {{ f.gain | abs | money(f.currency) }}</span> on the {{ f.n_gain }} you paid for{% else %}You paid
+      {{ f.paid | money(f.currency) }} for {{ f.n_paid }} — none of them priced yet{% endif %}</span>
+    {% endfor %}
   </div>
   <div class="tiles">
-    <div class="tile">
-      <span class="k">Shelf value · {{ items | length }} steelbook{{ "s" if items | length != 1 }}</span>
-      {% for f in floor %}
-      <span class="display">{{ "{:,.0f}".format(f.total) }} {{ f.currency }}</span>
-      {% else %}
-      <span class="display">—</span>
-      {% endfor %}
-      <span class="sub">{% if floor %}each one's median · {% if floor[0].n_sold and floor[0].asks %}{{ "{:,.0f}".format(floor[0].sold) }} from sold prices, {{ "{:,.0f}".format(floor[0].asks) }} from asks{% else %}{{ basis }}{% endif %}{% else %}no prices yet{% endif %}</span>
+    {% if main %}
+    <div class="tile wide-only">
+      <span class="k">Backed by sales</span>
+      <span class="display">{{ main.n_sold }} of {{ main.n }}</span>
+      <span class="sub">{{ "the rest are asks" if main.n_sold < main.n else "every price a sale" }}</span>
     </div>
-    {% for f in floor if f.n_paid %}
-    <div class="tile gain">
-      <span class="k">You paid {{ "{:,.0f}".format(f.paid) }} {{ f.currency }} for
-      {{ f.n_paid }} of them</span>
-      <span class="sub">{% if f.n_gain %}<span class="{{ 'up' if f.gain >= 0 else 'down' }}">{{ "up" if f.gain >= 0 else "down" }}
-      {{ "{:,.0f}".format(f.gain | abs) }}</span> on the {{ f.n_gain }} priced{% else %}none of them priced yet{% endif %}</span>
-    </div>
-    {% endfor %}
+    {% endif %}
     {% if biggest %}
     <a class="tile" href="/?sort=label">
-      <span class="k">{{ biggest.name }} · {{ biggest.items | length }}</span>
-      <span class="display">{% if main and biggest.total %}{{ "{:,.0f}".format(biggest.total) }} {{ main.currency }}{% else %}—{% endif %}</span>
-      <span class="sub">{% if main and main.total %}{{ "%.0f" | format(biggest.total / main.total * 100) }}% of the shelf · the largest label{% else %}the largest label{% endif %}</span>
+      <span class="k">Biggest label</span>
+      <span class="display">{% if main and biggest.total %}{{ biggest.total | money(main.currency) }}{% else %}—{% endif %}</span>
+      <span class="sub">{{ biggest.name }} · {{ biggest.items | length }}{% if main and main.total %} · {{ "%.0f" | format(biggest.total / main.total * 100) }}% of the shelf{% endif %}</span>
     </a>
     {% endif %}
-    <a class="tile" href="/review" aria-label="{{ n_review }} need{{ 's' if n_review == 1 }} a second look: no format or region">
+    <a class="tile{% if n_review %} alert{% endif %}" href="/review" aria-label="{{ n_review }} need{{ 's' if n_review == 1 }} a second look: no format or region">
       <span class="k">Needs a look</span>
-      <span class="display">{{ n_review }}</span>
-      <span class="sub">no format or region — a looser price search</span>
+      <span class="display">{{ n_review }} case{{ "s" if n_review != 1 }}</span>
+      <span class="sub">no format or region →</span>
     </a>
   </div>
   {% if floor %}
-  <p class="muted small caveat">{{ kinds.fetched }} fetched from eBay · {{ kinds.by_hand }}
-      entered by hand{% if kinds.unpriced %} · {{ kinds.unpriced }} not priced{% endif %}.
-      Each is as of when it was fetched or entered, not live.</p>
+  <details class="how small">
+    <summary>How these numbers are made</summary>
+    <p class="muted">Each case counts at its median price{% if main.n_sold and main.asks %}:
+      {{ main.sold | money(main.currency) }} from sold prices, {{ main.asks | money(main.currency) }}
+      from asks — what sellers want, which usually runs above what sells{% endif %}.
+      {% for f in floor if f.n_paid %}You paid {{ f.paid | money(f.currency) }} for {{ f.n_paid }}
+      of them. {% endfor %}{{ kinds.fetched }} fetched from eBay · {{ kinds.by_hand }} entered by
+      hand{% if kinds.unpriced %} · {{ kinds.unpriced }} not priced{% endif %}. Each is as of when
+      it was fetched or entered, not live.</p>
+  </details>
   {% endif %}
 </section>
 
@@ -51,8 +55,10 @@
 <input class="sr" type="radio" name="view" id="v-covers">
 <div class="views">
   <div class="switch">
-    <label for="v-shelf">Shelf</label>
-    <label for="v-covers">Covers</label>
+    <label for="v-shelf"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"
+      stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M2.5 2v12M6 2v12M9.5 3.5V14M12 2.5l2 11.5"/></svg>Shelf</label>
+    <label for="v-covers"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"
+      stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></svg>Covers</label>
   </div>
   <form class="search" role="search" action="/">
     <input type="hidden" name="sort" value="{{ sort }}">
@@ -92,7 +98,7 @@
         <span class="f">{% if "4k" in fmt %}4K{% elif "blu" in fmt %}BD{% elif "dvd" in fmt %}DVD{% endif %}</span>
       {% endif %}
         {% if it.latest_median is not none %}
-        <span class="tag">~{{ "%.0f" | format(it.latest_median) }} {{ it.latest_currency }}</span>
+        <span class="tag">~{{ it.latest_median | money(it.latest_currency) }}</span>
         {% endif %}
       </a>
     </li>
@@ -123,7 +129,7 @@
           <strong>{{ it.title }}</strong><br>
           <span class="muted small">{{ it.retailer or it.format or "" }}</span>
           {% if it.latest_median is not none %}
-          <br><span class="small">{{ "sold" if it.latest_source in sold_sources else "ask" }} ~{{ "%.2f" | format(it.latest_median) }} {{ it.latest_currency }}{% if it.latest_source == "manual_sold" %} · by hand{% endif %}</span>
+          <br><span class="small">{{ "sold" if it.latest_source in sold_sources else "ask" }} ~{{ it.latest_median | money(it.latest_currency, 2) }}{% if it.latest_source == "manual_sold" %} · by hand{% endif %}</span>
           {% endif %}
         </div>
       </a>
@@ -145,7 +151,7 @@
         {% else %}<span class="swatch c{{ it.id % 10 }}"{% if it.spine_color %} style="--tone: {{ it.spine_color }}"{% endif %}></span>{% endif %}
         <span class="name"><strong>{{ it.title }}</strong>
           <span class="muted small">{{ it.retailer or it.edition or it.format or "" }}</span></span>
-        <span class="display price">{{ "{:,.0f}".format(it.latest_median) }} {{ it.latest_currency }}</span>
+        <span class="display price">{{ it.latest_median | money(it.latest_currency) }}</span>
       </a></li>
       {% endfor %}
     </ol>
@@ -153,11 +159,14 @@
   {% endif %}
   {% if over_time %}
   <section class="tile">
-    <h2 class="k">Shelf value over time</h2>
-    {{ charts.line(over_time, "Shelf value over time", "{:,.0f}", marks) }}
+    <div class="tile-head">
+      <h2 class="k">Shelf value over time</h2>
+      {% if over_time.points | length > 1 %}{% set d = over_time.last.value - over_time.first.value %}
+      <span class="small {{ 'up' if d >= 0 else 'down' }}">{{ "+" if d >= 0 }}{{ d | money(main.currency) }}</span>{% endif %}
+    </div>
+    {{ charts.line(over_time, "Shelf value over time", marks=marks, cur=main.currency, names=("Value", "Paid")) }}
     {% if over_time.beside and over_time.points | length > 1 %}
-    <span class="sub">Solid: the value. Dashed: what you paid for the cases it counts
-      ({{ "{:,.0f}".format(over_time.beside[-1].value) }} now) — a case bought lifts both, a
+    <span class="sub">Paid counts the cases the value does: a case bought lifts both lines, a
       price that rose lifts only the value.</span>
     {% endif %}
     {% if over_time.points | length == 1 %}

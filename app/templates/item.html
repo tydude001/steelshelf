@@ -62,34 +62,40 @@
 <section class="card value">
   {% if latest %}
   <div class="worth">
+    <div class="muted small">Worth about</div>
+    <div class="figure"><span class="display">{{ latest.median | money(latest.currency, 2) }}</span>
+      <span class="badge">{{ "Sold" if sold else "Ask" }}</span></div>
+    <div class="small"><strong>{{ "Sold (median)" if sold else "Ask (median)" }}</strong><span class="muted">
+      {%- if latest.source == "serpapi_active_used" %} · used copies
+      {%- elif latest.source == "serpapi_active_new" %} · new copies
+      {%- elif sold_fit %} · {{ "opened" if item_opened else "sealed" }} copies
+      {%- elif sold_fit is sameas false %} · any condition
+      {%- elif not sold and item_opened %} · sealed copies
+      {%- elif not sold and item_sealed %} · new and used copies{% endif %}
+      · {{ "entered" if latest.source == "manual_sold" else "fetched" }} {{ latest.fetched_at | day }}</span></div>
+  </div>
+  {% if item.paid_price is not none %}
+  <div class="paid-strip">
     <div>
-      <div class="muted small">Worth about</div>
-      <div class="display">{{ "%.2f" | format(latest.median) }} {{ latest.currency }}</div>
-      <div class="small"><strong>{{ "Sold (median)" if sold else "Ask (median)" }}</strong><span class="muted">
-        {%- if latest.source == "serpapi_active_used" %} · used copies
-        {%- elif latest.source == "serpapi_active_new" %} · new copies
-        {%- elif sold_fit %} · {{ "opened" if item_opened else "sealed" }} copies
-        {%- elif sold_fit is sameas false %} · any condition
-        {%- elif not sold and item_opened %} · sealed copies
-        {%- elif not sold and item_sealed %} · new and used copies{% endif %}
-        · {{ "entered" if latest.source == "manual_sold" else "fetched" }} {{ latest.fetched_at | day }}</span></div>
+      <span class="k">You paid</span>
+      <strong>{{ item.paid_price | money(latest.currency, 2) }}</strong>
+      {% if item.paid_on %}<span class="muted small">{{ item.paid_on | on_day }}</span>{% endif %}
     </div>
-    {% if item.paid_price is not none %}
-    <div class="paid">
-      <div class="muted small">You paid{% if item.paid_on %} {{ item.paid_on }}{% endif %}</div>
-      <div class="display">{{ "%.2f" | format(item.paid_price) }}</div>
-      {% if gain is not none %}
-      <div class="small {{ 'up' if gain >= 0 else 'down' }}">{{ "up" if gain >= 0 else "down" }} {{ "%.2f" | format(gain | abs) }}{% if item.paid_price %} · {{ "%.1f" | format(latest.median / item.paid_price) }}×{% endif %}</div>
-      {% endif %}
+    {% if gain is not none %}
+    <div>
+      <span class="k">{{ "Gain" if gain >= 0 else "Loss" }}</span>
+      <strong class="{{ 'up' if gain >= 0 else 'down' }}">{{ "+" if gain >= 0 else "−" }}{{ gain | abs | money(latest.currency, 2) }}</strong>
+      {% if item.paid_price %}<span class="muted small">{{ "%.1f" | format(latest.median / item.paid_price) }}× what you paid</span>{% endif %}
     </div>
     {% endif %}
   </div>
+  {% endif %}
   {% if latest.high > latest.low %}
   <div>
     <div class="range"><i style="left: {{ ((latest.median - latest.low) / (latest.high - latest.low) * 100) | round(1) }}%"></i></div>
     {% set quartiles = latest.matched and latest.n_listings >= quartiles_from %}
-    <div class="range-ends muted"><span>{{ "middle half from" if quartiles else "low" }} {{ "%.2f" | format(latest.low) }}</span>
-      <span>{{ "to" if quartiles else "high" }} {{ "%.2f" | format(latest.high) }}</span></div>
+    <div class="range-ends muted"><span>{{ "middle half from" if quartiles else "low" }} {{ latest.low | money(latest.currency, 2) }}</span>
+      <span>{{ "to" if quartiles else "high" }} {{ latest.high | money(latest.currency, 2) }}</span></div>
   </div>
   {% endif %}
   {% if confidence %}
@@ -122,7 +128,7 @@
   {% endif %}
   {% if newer_ask %}
   <p class="small" style="margin: 0"><strong>A sold price outranks a newer ask.</strong>
-    <span class="muted">An ask of {{ "%.2f" | format(newer_ask.median) }} came
+    <span class="muted">An ask of {{ newer_ask.median | money(newer_ask.currency, 2) }} came
     {{ newer_ask.fetched_at | day }}; this sold price counts until {{ sold_until }}, when
     eBay's sold search would no longer see its sales.</span></p>
   {% endif %}
@@ -150,15 +156,9 @@
   <form method="post" action="/items/{{ item.id }}/value" data-wait="Fetching prices…">
     <button class="btn wide" type="submit">Refresh price</button>
   </form>
-  {% if reprice.on %}
-  <p class="muted small" style="margin: 0">Re-priced on the {{ reprice.day }}th of each month;
-    next {{ reprice.next.day }} {{ reprice.next.strftime("%b") }}. Refreshing by hand adds a
-    price now{% if asks_via_serpapi %} and uses one of the month’s searches{% if item.upc %}
-    (two, when its UPC finds nothing){% endif %}{% endif %}.</p>
-  {% endif %}
   <div class="secondary">
     <details class="sold-entry">
-      <summary class="btn tiny">Enter a sold price</summary>
+      <summary class="btn tiny">Enter sold prices</summary>
       <form method="post" action="/items/{{ item.id }}/sold">
         <label class="muted small" for="sold-prices">Sold prices you found on eBay (Sold Items
           filter), separated by commas</label>
@@ -170,12 +170,19 @@
     {% if sold_lookup %}
     <form method="post" action="/items/{{ item.id }}/sold/lookup"
           data-wait="Searching eBay sold listings…">
-      <button class="btn tiny" type="submit">Look up eBay sold prices</button>
+      <button class="btn tiny" type="submit">Find sold prices</button>
     </form>
     {% endif %}
   </div>
   <details class="how small">
     <summary>How this is priced</summary>
+    {% if reprice.on %}
+    <p class="muted">Re-priced on the {{ reprice.day }}th of each month; next
+      {{ reprice.next.day }} {{ reprice.next.strftime("%b") }}. Refreshing by hand adds a price
+      now{% if asks_via_serpapi %} and uses one of the month’s searches{% if item.upc %} (two,
+      when its UPC finds nothing){% endif %}{% endif %}.{% if sold_lookup %} Find sold prices
+      looks up eBay sales for this case.{% endif %}</p>
+    {% endif %}
     <p class="muted">{% if sold %}The median of eBay sales, with the middle half of them as the
     range from five sales.{% else %}The median of current eBay Buy It Now asks — what sellers
     ask, which usually runs above what copies sell for.{% endif %} {% if asks_via_serpapi %}Searched by title through SerpApi
@@ -199,7 +206,7 @@
         {% if l.url %}<a href="{{ l.url }}" rel="noopener noreferrer" target="_blank">{{ l.title }}</a>{% else %}{{ l.title }}{% endif %}
         <div class="muted small">{{ l.condition or "condition not given" }}{% if l.excluded %} · set aside{% endif %}</div>
       </div>
-      <span class="price">{{ "%.2f" | format(l.price) }}</span>
+      <span class="price">{{ l.price | money(latest.currency if latest else "USD", 2) }}</span>
       <form method="post" action="/items/{{ item.id }}/listings/{{ l.id }}/toggle">
         <button class="btn tiny" type="submit" aria-label="{{ 'Count' if l.excluded else 'Set aside' }}: {{ l.title }}">{{ "Count it" if l.excluded else "Not this one" }}</button>
       </form>
@@ -216,7 +223,7 @@
   <h2>History</h2>
   {% if chart %}
   {% set c = chart %}
-  {{ charts.line(c, "Price history") }}
+  {{ charts.line(c, "Price history", cur=(latest or valuations[0]).currency, places=2) }}
   {% if c.points | length == 1 %}<p class="muted small" style="margin: 0">One price so far — a line once there is a second fetch.</p>{% endif %}
   {% endif %}
   <details class="small">
@@ -258,7 +265,7 @@
   <dt>tmdb</dt><dd>genre and director set by hand</dd>
   {% endif %}
   {% if item.paid_price is not none and not latest %}
-  <dt>paid</dt><dd>{{ "%.2f" | format(item.paid_price) }}{% if item.paid_on %} on {{ item.paid_on }}{% endif %}</dd>
+  <dt>paid</dt><dd>{{ "%.2f" | format(item.paid_price) }}{% if item.paid_on %} on {{ item.paid_on | on_day }}{% endif %}</dd>
   {% endif %}
   <dt>added</dt><dd>{{ item.created_at | day }}</dd>
 </dl>

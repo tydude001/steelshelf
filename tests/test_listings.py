@@ -133,10 +133,10 @@ def test_item_page_lists_the_listings_and_the_toggle_sets_one_aside(admin, stub_
     r = admin.post(f"{loc}/listings/{zavvi['id']}/toggle", auth=AUTH, follow_redirects=False)
     assert r.status_code == 303 and r.headers["location"] == f"{loc}#listings"
     page = admin.get(loc).text
-    assert "50.00 USD" in page  # re-counted from the two left
+    assert "$50.00" in page  # re-counted from the two left
     assert page.count("Not this one") == 2 and page.count("Count it") == 1
     assert "set aside" in page and 'class="out"' in page
-    assert "~50.00" in admin.get("/").text
+    assert "~$50.00" in admin.get("/").text
 
     assert admin.post(f"{loc}/listings/999/toggle", auth=AUTH).status_code == 404
     assert admin.post("/items/999/listings/1/toggle", auth=AUTH).status_code == 404
