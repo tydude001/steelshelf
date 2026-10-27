@@ -216,6 +216,8 @@ else, and there is no telemetry.
 - [docs/architecture.md](docs/architecture.md) — every module and directory.
 - [docs/deploy.md](docs/deploy.md) — running it for real: exposure, backups,
   health checks, the worker.
+- [docs/COMPETITORS.md](docs/COMPETITORS.md) — other collection apps, read
+  from their listings, and what was taken from them.
 
 ## Development
 

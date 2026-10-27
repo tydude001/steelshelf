@@ -6,7 +6,8 @@ front page; the design lives in `docs/` — read the one a task touches first:
 [identification.md](docs/identification.md) (capture, barcode, vision, drafts,
 the model decision), [pricing.md](docs/pricing.md) (worth, edition matching,
 re-price, the pricing-source decision), [shelf.md](docs/shelf.md) (sorts,
-TMDB, spines, stats), [architecture.md](docs/architecture.md) (every module).
+TMDB, spines, stats), [architecture.md](docs/architecture.md) (every module),
+[COMPETITORS.md](docs/COMPETITORS.md) (other collection apps).
 Detail goes in those; the README keeps features, setup, keys and limits.
 
 ## Environment
