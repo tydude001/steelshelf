@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block title %}Import — steelshelf{% endblock %}
+{% block content %}
+<h1>Import a spreadsheet</h1>
+{% if error %}
+<div class="errors"><ul><li>{{ error }}</li></ul></div>
+{% endif %}
+
+{% if done %}
+<p role="status"><strong>{{ done.saved }} case{{ "s" if done.saved != 1 }} added to the
+shelf</strong>{% if done.repeats_saved %}, {{ done.repeats_saved }} of them ticked
+repeats{% endif %}.</p>
+<p class="muted">Genre and director come from TMDB in the background where the file left
+them blank. Nothing was priced: a price in a spreadsheet is never saved as what a case is
+worth. <strong>Run the rest now</strong> on <a href="/stats#reprice">Stats</a> prices the
+new cases first.</p>
+{% elif sheet %}
+<p class="muted">{{ rows | length }} row{{ "s" if rows | length != 1 }} read.
+{{ good | length }} to add, {{ repeats | length }} already on the shelf,
+{{ bad | length }} with problems. Nothing is saved until you press Import.
+{% if sheet.ignored %}Columns read by nothing: {{ sheet.ignored | join(", ") }} — a price in
+the file is never saved as what a case is worth.{% endif %}</p>
+{% endif %}
+
+{% if sheet %}
+<form method="post" action="/import/{{ token }}">
+{% if good and not done %}
+<h2>To add</h2>
+<table>
+  <thead><tr><th>Line</th><th>Title</th><th>Edition</th><th>Retailer</th><th>Format</th>
+    <th>UPC</th><th>Paid</th></tr></thead>
+  <tbody>
+  {% for r in good[:50] %}
+  <tr><td>{{ r.n }}</td><td>{{ r.fields.title }}</td><td>{{ r.fields.edition or "" }}</td>
+    <td>{{ r.fields.retailer or "" }}</td><td>{{ r.fields.format or "" }}</td>
+    <td>{{ r.fields.upc or "" }}</td>
+    <td>{% if r.fields.paid_price is not none %}{{ "%.2f" | format(r.fields.paid_price) }}{% endif %}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% if good | length > 50 %}<p class="muted small">and {{ good | length - 50 }} more.</p>{% endif %}
+{% endif %}
+
+{% if noted %}
+<h2>Repaired</h2>
+<ul>{% for r in noted %}{% for note in r.notes %}<li>Line {{ r.n }}: {{ note }}</li>{% endfor %}{% endfor %}</ul>
+{% endif %}
+
+{% if repeats %}
+<h2>Already on the shelf</h2>
+<p class="muted small">{% if done %}Left out unless ticked.{% else %}Left out unless you tick
+one: a second copy is a case of its own.{% endif %}</p>
+<ul class="import-repeats">
+  {% for r in repeats %}
+  <li><label class="check">{% if not done %}<input type="checkbox" name="include" value="{{ r.n }}">{% endif %} Line {{ r.n }}: <strong>{{ r.fields.title }}</strong> —
+    same {{ r.repeat.by }} as <a href="/items/{{ r.repeat.id }}">{{ r.repeat.title }}</a></label></li>
+  {% endfor %}
+</ul>
+{% endif %}
+
+{% if bad %}
+<h2>Not imported</h2>
+<ul>
+  {% for r in bad %}
+  <li>Line {{ r.n }}{% if r.fields.title %} ({{ r.fields.title }}){% endif %}: {{ r.errors | join("; ") }}</li>
+  {% endfor %}
+</ul>
+{% endif %}
+
+{% if not done %}
+<button class="btn wide" type="submit"{% if not good and not repeats %} disabled{% endif %}>Import
+  {{ good | length }} case{{ "s" if good | length != 1 }}</button>
+{% endif %}
+</form>
+{% endif %}
+
+{% if not sheet or done %}
+<form method="post" action="/import" enctype="multipart/form-data" class="import-upload">
+  <label for="file">A CSV laid out like steelshelf's export</label>
+  <input id="file" name="file" type="file" accept=".csv,text/csv" required>
+  <button class="btn tiny" type="submit">Preview</button>
+</form>
+{% endif %}
+{% endblock %}

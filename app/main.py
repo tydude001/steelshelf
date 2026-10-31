@@ -29,6 +29,11 @@
                            re-render the edit form filled in          (HTTP Basic)
   GET  /export.csv         the whole shelf as a spreadsheet, one row per
                            case with what it is worth                  (HTTP Basic)
+  POST /import             upload a CSV laid out like the export; held for
+                           a day, 303 to its preview                  (HTTP Basic)
+  GET  /import/{token}     the preview: every row checked by the add form's
+                           rules, repeats of a case on the shelf flagged (HTTP Basic)
+  POST /import/{token}     save the good rows in one transaction      (HTTP Basic)
   GET  /review             items missing a format or region, and spine
                            photos the shelf could not use             (open)
   POST /items/{id}/value   fetch an eBay quote, append a valuation    (HTTP Basic)
@@ -69,6 +74,7 @@ import json
 import logging
 import sqlite3
 import threading
+import uuid
 import zlib
 from contextlib import asynccontextmanager
 from datetime import datetime
@@ -597,6 +603,129 @@ def export_csv(_: str = Depends(require_admin)):
     name = f"steelshelf-{datetime.now().astimezone().date().isoformat()}.csv"
     return Response(csvio.export(items), media_type="text/csv; charset=utf-8",
                     headers={"Content-Disposition": f'attachment; filename="{name}"'})
+
+
+IMPORT_DIR = "_imports"
+IMPORT_MAX_AGE = 24 * 3600
+
+
+def _import_path(token: str) -> Path | None:
+    """The held upload for a token, or None for a token that is not one of ours."""
+    if not photos._TOKEN.fullmatch(token):
+        return None
+    return Path(settings.photo_dir) / IMPORT_DIR / f"{token}.csv"
+
+
+def _prune_imports() -> None:
+    root = Path(settings.photo_dir) / IMPORT_DIR
+    if root.is_dir():
+        cutoff = datetime.now().timestamp() - IMPORT_MAX_AGE
+        for f in root.glob("*.csv"):
+            if f.stat().st_mtime < cutoff:
+                f.unlink(missing_ok=True)
+
+
+def _import_rows(sheet: csvio.Sheet, items) -> list[dict]:
+    """Each row of the file as the add form would take it: its values, its errors (the
+    add form's own `_item_values` and `_item_errors`), notes on what was repaired, and
+    the shelf case it repeats, if any. `n` is its line in the file, the header being 1."""
+    by_upc = {it["upc"]: it for it in items if it["upc"]}
+    by_key = {csvio.repeat_key(it["title"], it["edition"], it["retailer"]): it
+              for it in items}
+    out = []
+    for n, raw in enumerate(sheet.rows, start=2):
+        values = _item_values(**{f: csvio.unformula(raw.get(f, "")) for f in csvio.IMPORT_FIELDS})
+        values["upc"], upc_note = csvio.repair_upc(values["upc"])
+        values["paid_price"], price_note = csvio.decimal_comma(values["paid_price"])
+        notes = [n for n in (upc_note, price_note) if n]
+        errors = _item_errors(values)
+        repeat = None
+        if not errors:
+            match = by_upc.get(values["upc"]) if values["upc"] else None
+            match = match or by_key.get(
+                csvio.repeat_key(values["title"], values["edition"], values["retailer"]))
+            repeat = match and {"id": match["id"], "title": match["title"],
+                                "by": "UPC" if values["upc"] and match["upc"] == values["upc"]
+                                else "title, edition and retailer"}
+        out.append({"n": n, "fields": values, "errors": errors,
+                    "notes": notes, "repeat": repeat})
+    return out
+
+
+def _import_page(request, token=None, sheet=None, rows=(), error=None, done=None,
+                 status_code=200):
+    rows = list(rows)
+    ctx = {"token": token, "sheet": sheet, "rows": rows, "error": error, "done": done,
+           "good": [r for r in rows if not r["errors"] and not r["repeat"]],
+           "repeats": [r for r in rows if not r["errors"] and r["repeat"]],
+           "bad": [r for r in rows if r["errors"]],
+           "noted": [r for r in rows if r["notes"] and not r["errors"]]}
+    return TEMPLATES.TemplateResponse(request, "import.html", ctx, status_code=status_code)
+
+
+def _held_import(token: str) -> csvio.Sheet:
+    path = _import_path(token)
+    if path is None or not path.is_file():
+        raise HTTPException(404, "no such upload: it is over a day old, or already imported")
+    return csvio.read(path.read_bytes())
+
+
+@app.post("/import")
+async def import_upload(request: Request, _: str = Depends(require_admin),
+                        file: UploadFile | None = File(None)):
+    """Hold an uploaded CSV for its preview; nothing is saved to the shelf here."""
+    data = await file.read(csvio.MAX_BYTES + 1) if file is not None and file.filename else b""
+    try:
+        if not data:
+            raise csvio.SheetError("choose a CSV file to import")
+        csvio.read(data)
+    except csvio.SheetError as exc:
+        return _import_page(request, error=str(exc), status_code=422)
+    _prune_imports()
+    token = uuid.uuid4().hex
+    path = _import_path(token)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(data)
+    return RedirectResponse(f"/import/{token}", status_code=303)
+
+
+@app.get("/import/{token}", response_class=HTMLResponse)
+def import_preview(request: Request, token: str, _: str = Depends(require_admin)):
+    sheet = _held_import(token)
+    with db.connect(settings.database_path) as conn:
+        items = db.list_items(conn)
+    return _import_page(request, token, sheet, _import_rows(sheet, items))
+
+
+@app.post("/import/{token}", response_class=HTMLResponse)
+async def import_save(request: Request, token: str, _: str = Depends(require_admin)):
+    """Save every good row, and each repeat ticked on the preview, in one transaction.
+
+    The rows are checked again here from the held file, not taken from the form. No
+    valuation is written: a spreadsheet's price is not one (docs/shelf.md)."""
+    sheet = _held_import(token)
+    form = await request.form()
+    include = {int(v) for v in form.getlist("include") if str(v).isdigit()}
+    conn = db.connect(settings.database_path)
+    try:
+        rows = _import_rows(sheet, db.list_items(conn))
+        chosen = [r for r in rows if not r["errors"]
+                  and (not r["repeat"] or r["n"] in include)]
+        for r in chosen:
+            item_id = db.insert_item(conn, r["fields"])
+            if r["fields"]["genre"] or r["fields"]["director"]:
+                db.set_film_by_hand(conn, item_id)  # typed, as on the add form
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+    _import_path(token).unlink(missing_ok=True)
+    log.info("import: %d cases saved, %d left out", len(chosen), len(rows) - len(chosen))
+    look_up_films()
+    done = {"saved": len(chosen), "repeats_saved": sum(1 for r in chosen if r["repeat"])}
+    return _import_page(request, None, sheet, rows, done=done)
 
 
 @app.get("/review", response_class=HTMLResponse)

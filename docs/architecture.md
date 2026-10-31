@@ -29,8 +29,10 @@ decisions are in [identification.md](identification.md) and
   - `shelf.py` — the sort keys and grouped shelves, search, most valuable,
     value over time.
   - `stats.py` — what `/stats` counts.
-  - `csvio.py` — the shelf as CSV for `/export.csv`: the item's fields, then
-    what it is worth, ask or sold.
+  - `csvio.py` — the shelf as CSV, out and in: for `/export.csv` the item's
+    fields, then what it is worth, ask or sold; for `/import` the file read
+    by column name (`read`), and the repairs a spreadsheet needs — the UPC's
+    lost leading zero, a decimal comma, the export's formula apostrophe.
   - `present.py` — dates as the local date only (SQLite stamps are UTC, and
     the container is UTC too unless `TZ` is set in `.env`), and the chart
     geometry the templates draw as inline SVG.

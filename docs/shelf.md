@@ -86,31 +86,39 @@ file, though a spreadsheet that reads it as a number drops it. Export is
 behind the admin login although the pages are open: one file is the whole
 record of what someone owns and paid.
 
-**Import** reads a collector's existing spreadsheet into the shelf. The
-design:
+**Import** reads a collector's existing spreadsheet into the shelf
+(`csvio.read` and the import routes in `main.py`):
 
-1. **Upload** (`POST /import`, admin, on `/stats` beside the export): a CSV
-   of up to 5,000 rows, its delimiter sniffed (comma, semicolon or tab), read
-   as UTF-8 with or without the mark, else Windows-1252. The file is held
-   under `PHOTO_DIR/_imports/<token>.csv` and pruned after a day, like a
-   draft; no table.
+1. **Upload** (`POST /import`, admin, on `/stats` beside the export, and
+   there on an empty shelf too): a CSV of up to 5,000 rows and 10 MB, its
+   delimiter sniffed (comma, semicolon or tab), read as UTF-8 with or without
+   the mark, else Windows-1252. A file with no `title` column is refused at
+   upload. The file is held under `PHOTO_DIR/_imports/<token>.csv` and pruned
+   after a day, like a draft; no table.
 2. **Map** columns to fields, each guessed from its header — `Title`,
    `Movie` and `Film` to `title`, `Barcode`, `EAN` and `UPC` to `upc`,
    `Cost`, `Price paid` and `Purchase price` to `paid_price`, `Store` and
    `Exclusive` to `retailer`, and so on — and a steelshelf export maps itself
    by name. The worth columns and `id` map to nothing.
-3. **Preview** the first rows and every row's problems, checked by the add
-   form's own rules (`_item_values`, `_item_errors`) — no title, a UPC that
-   is not digits, a paid price that is not a number, a year out of range —
-   and the GS1 check digit identify holds a UPC to. A UPC of 11 digits that passes once a zero
-   is put back in front is a spreadsheet's doing and is repaired; a leading
-   `'` before `=`, `+`, `-` or `@` is the export's and comes off. A row whose
-   UPC, or title, edition and retailer, matches a case on the shelf is marked
-   a repeat and left out unless ticked, so importing an export onto the shelf
-   it came from adds nothing.
-4. **Import** the good rows in one transaction; the bad ones are listed, not
-   saved. A typed genre or director marks the case set by hand, as on the
-   add form.
+3. **Preview** (`GET /import/<token>`) the first 50 rows to add and every
+   row's problems, checked by the add form's own rules (`_item_values`,
+   `_item_errors`) — no title, a UPC that is not digits, a paid price that is
+   not a number, a year out of range — and the GS1 check digit identify holds
+   a UPC to: a UPC of digits that fails it is dropped with a note, as
+   identify drops one, and the row still imports. A UPC of 11 digits that
+   passes once a zero is put back in front is a spreadsheet's doing and is
+   repaired; a paid price with a comma and one or two digits after it
+   (`12,50`, as a semicolon-separated European sheet writes it) is a decimal
+   comma, since a thousands separator groups three; a leading `'` before
+   `=`, `+`, `-` or `@` is the export's and comes off. Each repair is listed.
+   A row whose UPC, or title, edition and retailer (ignoring case), matches a
+   case on the shelf is marked a repeat and left out unless ticked, so
+   importing an export onto the shelf it came from adds nothing. The columns
+   that map to nothing — `id`, `added`, the worth columns — are named.
+4. **Import** (`POST /import/<token>`) the good rows and the ticked repeats in
+   one transaction, checked again from the held file rather than taken from
+   the form, which is then deleted; the bad ones are listed, not saved. A
+   typed genre or director marks the case set by hand, as on the add form.
 
 Then the background work the app already does: TMDB fills genre, director
 and year for every new case (`look_up_films`), and the import starts the
@@ -130,8 +138,10 @@ may be what they paid, an ask, a sale or a guess, and a valuation has to say
 which; mapped to `paid_price` it is what was paid, and otherwise it stays in
 the sheet.
 
-**First import slice:** upload, preview and import for a file that maps
-itself by name — a steelshelf export or a sheet laid out the same way —
-with the row checks, repeat detection, and the TMDB lookup and re-price
-after it. The column-mapping step for other apps' sheets comes next, then
-adding photos to a saved case.
+**Built in the first slice:** upload, preview and import for a file that
+maps itself by name — a steelshelf export or a sheet laid out the same way
+(header names matched ignoring case, a space read as `_`) — with the row
+checks, repeat detection, the TMDB lookup after it, and the re-price left to
+**Run the rest now**, which the finished import points to. Not built: the
+column-mapping step (2 above) for other apps' sheets, then adding photos to
+a saved case.

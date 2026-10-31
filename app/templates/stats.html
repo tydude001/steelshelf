@@ -202,6 +202,17 @@
     worth with whether that is an ask or a sold price. Opens in any spreadsheet.</p>
 </section>
 {% endif %}
+<section class="card" id="import">
+  <h2>Import</h2>
+  <form method="post" action="/import" enctype="multipart/form-data">
+    <input name="file" type="file" accept=".csv,text/csv" aria-label="A CSV to import" required>
+    <button class="btn tiny" type="submit">Preview the import</button>
+  </form>
+  <p class="muted small note">A CSV laid out like the export — the export itself, or a
+    sheet with the same column names. You see every row checked before anything is
+    saved; cases already on the shelf are left out, and a price in the file is never
+    taken for what a case is worth.</p>
+</section>
 
 </div>
 {% endblock %}
