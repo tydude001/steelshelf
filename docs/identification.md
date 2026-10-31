@@ -1,7 +1,8 @@
 # Identification
 
 How a case gets from three phone photos to a saved row: what is captured, how
-it is named, and what is kept. The model choice behind it is at the end.
+it is named, and what is kept — one case at a time, or a whole shelf shot in
+one go and confirmed later. The model choice behind it is at the end.
 
 ## Capture
 
@@ -10,6 +11,17 @@ a steelbook, and optionally an **other** detail shot — a limited-edition
 number, the bottom of a box set, a sticker. A **box set or slip** tick tells
 the model the photos show outer packaging, which it cannot reliably see for
 itself; the saved edition then always names it.
+
+That is one case, identified while you wait (15–20 s on the worker) and
+confirmed on the spot. **Bulk capture** is the same form with a second
+button, **Queue and next**: it uploads the photos, answers as soon as they
+are on disk, and hands back an empty form with a count ("7 queued · 3
+ready"), so a full shelf on day one is shoot, tap, shoot, tap. Identifying
+happens behind you, and confirming waits for a desk (§ Bulk capture below).
+Dead Media's bulk scan is the reference ([COMPETITORS.md](COMPETITORS.md)),
+with one difference that is the whole point of steelshelf: its scan reads
+barcodes, and most steelbooks have none, so a queued case here carries
+photos and is read by the model like any other.
 
 ## Identify
 
@@ -52,6 +64,85 @@ rerun (a missing UPC is not flagged: most cases carry none).
 
 **You paid** and **Bought on** are typed, never identified; the item page sets
 the paid price against the worth, and the shelf sums both.
+
+## Bulk capture
+
+The single-case path holds its draft only on disk, for a day, because the
+form it feeds is open in front of you. A queued case waits days for its desk
+session and has to remember what identify said, so bulk capture gives drafts a
+row of their own; everything after that is the pipeline above, run later.
+
+**Drafts.** A `drafts` table, one row per queued case, beside the photos in
+`PHOTO_DIR/_drafts/<token>/` as now:
+
+| Column | Holds |
+|---|---|
+| `token` | the draft directory's name, the key |
+| `status` | `queued` → `identifying` → `ready`, or `failed` |
+| `boxed` | the box-or-slip tick, sent with the photos |
+| `upc` | the locally decoded barcode, if any |
+| `found` | identify's answer as JSON — values, doubts and who answered (`via`) |
+| `error` | why it failed: no model set up, a refusal, photos gone |
+| `attempts` | identify calls made for it |
+| `created_at`, `identified_at` | UTC stamps, as every table has them |
+
+A draft is not an item: the shelf, `/stats`, the re-price and `/healthz`
+never see it. `prune_drafts` leaves alone any directory with a row, so a
+queued case is kept until it is saved or discarded; a single-case draft, with
+no row, still goes after a day.
+
+**The queue.** One background thread, the film lookup's pattern
+(`main.look_up_films`): woken by each new draft and at startup, it takes the
+oldest `queued` row, marks it `identifying`, and runs exactly what
+`POST /add/identify` runs — `barcode.decode_any`, then
+`get_identifier().identify(shots, boxed=…)`, then `barcode.apply` — and writes
+`found` and `ready`. One case at a time: the worker is one `claude -p`
+process, and a shelf of 200 at 15–20 s each is about an hour, done before the
+desk session starts. Pricing stays out of the queue: an item is priced once
+saved, by **Refresh price** or the re-price run, whose plan takes
+never-priced items first ([pricing.md](pricing.md)), so **Run the rest now**
+on `/stats` prices a freshly confirmed batch. Nothing here puts a third party
+on a page: the queue is a background job and `/drafts` renders from the
+table.
+
+**At the desk.** `/drafts` lists the queue oldest first: the front thumbnail,
+the title and edition identify found, how many doubts, who answered, and the
+status; it reloads itself (a meta refresh) while anything is still queued.
+Each opens the existing `/add` review form filled from `found` (`GET
+/add?draft=<token>`), and **Save** is the existing `POST /items` with that
+draft, which now also deletes the row. Every case is confirmed one by one:
+the model's answer is a draft to check, here as on the phone. **Discard**
+drops the row and the photos.
+
+**When it goes wrong.**
+
+- **No front photo:** refused at **Queue and next**, nothing kept; identify
+  needs one.
+- **Upload fails** (the phone loses the network): the form says so and that
+  case is shot again; the browser keeps no file input across a failed post.
+- **Identify fails** — no key or worker, the worker down with no API to fall
+  back to, a refusal: `failed` with the reason. The draft still opens in the
+  form to type by hand, and **Identify again** re-queues it.
+- **The app restarts mid-queue:** startup puts any `identifying` row back to
+  `queued`; at most one call is repeated.
+- **Photos gone** (a draft directory deleted by hand): `failed`, "photos
+  gone", and only **Discard** is offered.
+- **The same case shot twice,** easy when working along a shelf: a draft
+  whose UPC, or title and edition, matches an item or an earlier draft is
+  marked *possibly a repeat* on `/drafts`.
+- **Photos of two cases in one draft** (front of one, back of the next): not
+  detectable; the review form shows every held photo, which is where it is
+  seen.
+- **Cost:** each queued case is one identify, as it would be alone. With the
+  worker over its limit, `Fallback` answers from the API at cents per case,
+  and `/drafts` names who answered each.
+
+**First build slice:** the `drafts` table, **Queue and next** (`POST
+/drafts`), the queue thread with the startup reset, `/drafts` with **Save**
+through the existing form and **Discard**, and `prune_drafts` sparing queued
+directories. Repeat detection, **Identify again**, and the meta refresh
+follow; a save-without-review shortcut for drafts with no doubts is left
+out until the confirm rate on a real shelf says it is safe.
 
 ## Vision model — the decision
 
