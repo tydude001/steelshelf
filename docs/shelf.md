@@ -1,8 +1,8 @@
 # The shelf
 
 How the library page is built: sorting and search, the film data behind the
-genre and director groups, the tiles and chart above it, the spines on it, and
-`/stats`.
+genre and director groups, the tiles and chart above it, the spines on it,
+`/stats`, and the shelf as a spreadsheet, out and in.
 
 ## Sorting and search
 
@@ -59,3 +59,79 @@ carpet.
 `/stats` (linked from the header) is the shelf in numbers: value by retailer
 or label, how many prices are solid / fair / thin with the thin ones listed,
 and counts by format, region and condition (`stats.py`).
+
+## Export and import
+
+**Export.** `GET /export.csv` (`csvio.py`, linked from `/stats`) downloads
+the whole shelf, one row per case, oldest first, as
+`steelshelf-<date>.csv`. The case's own columns come first under their
+`items` field names — `id`, `title`, `year`, `format`, `edition`, `retailer`,
+`region`, `upc`, `condition`, `notes`, `genre`, `director`,
+`edition_keywords`, `search_query`, `paid_price`, `paid_on` — so the file
+reads back into an import with no mapping. After them, what the case is
+worth: `worth`, `worth_currency`, `worth_low`, `worth_high`, `worth_count`,
+`worth_confidence` and `priced_on` from the valuation the shelf counts
+(`current_worth`, so a fetch that found nothing exports no worth, as the
+shelf shows none), with `worth_basis` `ask` or `sold` and the raw
+`worth_source`: an ask is labelled an ask in the file as on the page. `added`
+and `priced_on` are local dates, like the pages'. The price history stays
+out: one row per case is what a spreadsheet holds, and the history lives in
+`valuations`, which a database backup keeps ([deploy.md](deploy.md)).
+
+The file opens with a UTF-8 byte-order mark, so Excel reads an accented title
+right. A text cell opening with `=`, `+`, `-` or `@` gets a leading `'`,
+which spreadsheets show as text instead of running it: a title or edition can
+come from a web search. The UPC is text and keeps its leading zero in the
+file, though a spreadsheet that reads it as a number drops it. Export is
+behind the admin login although the pages are open: one file is the whole
+record of what someone owns and paid.
+
+**Import** reads a collector's existing spreadsheet into the shelf. The
+design:
+
+1. **Upload** (`POST /import`, admin, on `/stats` beside the export): a CSV
+   of up to 5,000 rows, its delimiter sniffed (comma, semicolon or tab), read
+   as UTF-8 with or without the mark, else Windows-1252. The file is held
+   under `PHOTO_DIR/_imports/<token>.csv` and pruned after a day, like a
+   draft; no table.
+2. **Map** columns to fields, each guessed from its header — `Title`,
+   `Movie` and `Film` to `title`, `Barcode`, `EAN` and `UPC` to `upc`,
+   `Cost`, `Price paid` and `Purchase price` to `paid_price`, `Store` and
+   `Exclusive` to `retailer`, and so on — and a steelshelf export maps itself
+   by name. The worth columns and `id` map to nothing.
+3. **Preview** the first rows and every row's problems, checked by the add
+   form's own rules (`_item_values`, `_item_errors`) — no title, a UPC that
+   is not digits, a paid price that is not a number, a year out of range —
+   and the GS1 check digit identify holds a UPC to. A UPC of 11 digits that passes once a zero
+   is put back in front is a spreadsheet's doing and is repaired; a leading
+   `'` before `=`, `+`, `-` or `@` is the export's and comes off. A row whose
+   UPC, or title, edition and retailer, matches a case on the shelf is marked
+   a repeat and left out unless ticked, so importing an export onto the shelf
+   it came from adds nothing.
+4. **Import** the good rows in one transaction; the bad ones are listed, not
+   saved. A typed genre or director marks the case set by hand, as on the
+   add form.
+
+Then the background work the app already does: TMDB fills genre, director
+and year for every new case (`look_up_films`), and the import starts the
+re-price by hand (**Run the rest now**), whose plan takes never-priced cases
+first — so pricing a 300-case import is the existing job within the existing
+quota, and whatever SerpApi's reserve leaves unreached carries to the monthly
+run. There is no model call per row: identify reads photos, and an imported
+case has none.
+
+Two consequences. **An imported case has no photos**: the shelf draws it as
+a plain spine with its title, and its item page, `/stats` and `/review`
+render as usual (checked against a case saved with none), but nothing yet
+adds photos to a saved case — that affordance, which would also run the spine
+cut and **Identify again**, is the step after import. And **a price in the
+spreadsheet is never imported as a valuation**: a number in someone's sheet
+may be what they paid, an ask, a sale or a guess, and a valuation has to say
+which; mapped to `paid_price` it is what was paid, and otherwise it stays in
+the sheet.
+
+**First import slice:** upload, preview and import for a file that maps
+itself by name — a steelshelf export or a sheet laid out the same way —
+with the row checks, repeat detection, and the TMDB lookup and re-price
+after it. The column-mapping step for other apps' sheets comes next, then
+adding photos to a saved case.

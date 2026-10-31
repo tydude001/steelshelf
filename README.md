@@ -48,6 +48,8 @@ drawn cases, since real steelbook art belongs to the studios and artists.
   across every field.
 - 📊 **Stats.** Value by retailer or label, how sure each price is, and counts
   by format, region and condition.
+- 📤 **Export.** The whole shelf as a CSV, every field and what each case is
+  worth, ask or sold, for any spreadsheet.
 
 ## Quick start
 
@@ -207,12 +209,13 @@ else, and there is no telemetry.
 ## Documentation
 
 - [docs/identification.md](docs/identification.md) — capture, the barcode and
-  vision steps, drafts, why Claude does the vision, and other models.
+  vision steps, drafts, bulk capture, why Claude does the vision, and other
+  models.
 - [docs/pricing.md](docs/pricing.md) — what an item is worth, matching
   listings to the edition, the monthly re-price, and the pricing-source
   decision.
 - [docs/shelf.md](docs/shelf.md) — sorts, search, TMDB, the value chart,
-  spine detection, `/stats`.
+  spine detection, `/stats`, CSV export and import.
 - [docs/architecture.md](docs/architecture.md) — every module and directory.
 - [docs/deploy.md](docs/deploy.md) — running it for real: exposure, backups,
   health checks, the worker.

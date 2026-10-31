@@ -18,6 +18,8 @@
   POST /items/{id}         save the edited fields, 303 to the item    (HTTP Basic)
   POST /items/{id}/identify ask Claude again from the stored photos,
                            re-render the edit form filled in          (HTTP Basic)
+  GET  /export.csv         the whole shelf as a spreadsheet, one row per
+                           case with what it is worth                  (HTTP Basic)
   GET  /review             items missing a format or region, and spine
                            photos the shelf could not use             (open)
   POST /items/{id}/value   fetch an eBay quote, append a valuation    (HTTP Basic)
@@ -74,7 +76,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.concurrency import run_in_threadpool
 
-from app import barcode, db, film, judge, photos, present, reprice, shelf, spine, stats
+from app import barcode, csvio, db, film, judge, photos, present, reprice, shelf, spine, stats
 from app.auth import require_admin
 from app.chat import ChatClient
 from app.identify import (
@@ -489,6 +491,19 @@ def reprice_now(request: Request, _: str = Depends(require_admin)):
     started = request.app.state.scheduler.start_by_hand()
     log.info("re-price by hand: %s", "started" if started else "not started")
     return RedirectResponse("/stats#reprice", status_code=303)
+
+
+@app.get("/export.csv")
+def export_csv(_: str = Depends(require_admin)):
+    """Every case and what it is worth, as a CSV download (`app/csvio.py`).
+
+    Behind the admin login although the pages are open: one file is the whole record
+    of what someone owns and paid, which an open page only gives up a case at a time."""
+    with db.connect(settings.database_path) as conn:
+        items = db.list_items(conn)
+    name = f"steelshelf-{datetime.now().astimezone().date().isoformat()}.csv"
+    return Response(csvio.export(items), media_type="text/csv; charset=utf-8",
+                    headers={"Content-Disposition": f'attachment; filename="{name}"'})
 
 
 @app.get("/review", response_class=HTMLResponse)

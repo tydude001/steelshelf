@@ -194,6 +194,14 @@
     form to hand it back to TMDB.</p>
 </section>
 {% endif %}
+{% if items %}
+<section class="card" id="export">
+  <h2>Export</h2>
+  <a class="btn tiny" href="/export.csv" download>Download the shelf as CSV</a>
+  <p class="muted small note">One row per case: every field, what you paid, and what it is
+    worth with whether that is an ask or a sold price. Opens in any spreadsheet.</p>
+</section>
+{% endif %}
 
 </div>
 {% endblock %}
