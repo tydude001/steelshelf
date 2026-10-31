@@ -28,6 +28,10 @@ and `reprice_items`, what became of each item it planned — `app/reprice.py`):
                 the item page can show them. `excluded` = 1 marks one the owner set
                 aside as not this edition; the flag is per (item, key), written on
                 every row of that key, and later fetches leave the key out.
+
+And `drafts`, bulk capture's queue: one row per case queued from the add form,
+its photos under PHOTO_DIR/_drafts/<token>/, until it is saved as an item or
+discarded. A draft is not an item; nothing that reads `items` sees it.
 """
 
 import sqlite3
@@ -123,6 +127,19 @@ CREATE TABLE IF NOT EXISTS reprice_items (
     detail      TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_reprice_items_item ON reprice_items(item_id, run_id);
+
+CREATE TABLE IF NOT EXISTS drafts (
+    token         TEXT PRIMARY KEY,  -- the PHOTO_DIR/_drafts/<token>/ directory's name
+    status        TEXT NOT NULL DEFAULT 'queued'
+                  CHECK (status IN ('queued', 'identifying', 'ready', 'failed')),
+    boxed         INTEGER NOT NULL DEFAULT 0,  -- the box-or-slip tick
+    upc           TEXT,             -- the barcode decoded locally, if any
+    found         TEXT,             -- identify's answer: {"values", "doubts", "via"} as JSON
+    error         TEXT,             -- why it failed
+    attempts      INTEGER NOT NULL DEFAULT 0,  -- identify calls made for it
+    created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+    identified_at TEXT
+);
 """
 
 
@@ -416,3 +433,58 @@ def valuation_history(conn: sqlite3.Connection) -> list[sqlite3.Row]:
         " FROM valuations"
         " ORDER BY fetched_at, id"
     ).fetchall()
+
+
+# --- drafts: bulk capture's queue (docs/identification.md § Bulk capture) ----------
+
+
+def insert_draft(conn: sqlite3.Connection, token: str, boxed: bool) -> None:
+    conn.execute("INSERT INTO drafts (token, boxed) VALUES (?, ?)", (token, int(boxed)))
+
+
+def get_draft(conn: sqlite3.Connection, token: str) -> sqlite3.Row | None:
+    return conn.execute("SELECT * FROM drafts WHERE token = ?", (token,)).fetchone()
+
+
+def list_drafts(conn: sqlite3.Connection) -> list[sqlite3.Row]:
+    """Every queued case, oldest first."""
+    return conn.execute("SELECT * FROM drafts ORDER BY created_at, rowid").fetchall()
+
+
+def draft_tokens(conn: sqlite3.Connection) -> set[str]:
+    return {r[0] for r in conn.execute("SELECT token FROM drafts")}
+
+
+def draft_counts(conn: sqlite3.Connection) -> dict[str, int]:
+    """{status: count}; a status with no drafts is absent."""
+    return dict(conn.execute("SELECT status, count(*) FROM drafts GROUP BY status").fetchall())
+
+
+def claim_draft(conn: sqlite3.Connection) -> sqlite3.Row | None:
+    """Mark the oldest queued draft `identifying`, counting the call about to be made,
+    and return it; None when nothing is queued. Commits."""
+    row = conn.execute(
+        "UPDATE drafts SET status = 'identifying', attempts = attempts + 1 WHERE token = ("
+        " SELECT token FROM drafts WHERE status = 'queued' ORDER BY created_at, rowid LIMIT 1)"
+        " RETURNING *").fetchone()
+    conn.commit()
+    return row
+
+
+def finish_draft(conn: sqlite3.Connection, token: str, upc: str | None, found: str | None,
+                 error: str | None = None) -> None:
+    """Record identify's answer (`ready`) or why there is none (`failed`, with `error`)."""
+    conn.execute(
+        "UPDATE drafts SET status = ?, upc = ?, found = ?, error = ?,"
+        " identified_at = datetime('now') WHERE token = ?",
+        ("failed" if error else "ready", upc, found, error, token))
+
+
+def requeue_identifying(conn: sqlite3.Connection) -> int:
+    """Put back drafts a stopped app left mid-identify; how many."""
+    return conn.execute(
+        "UPDATE drafts SET status = 'queued' WHERE status = 'identifying'").rowcount
+
+
+def delete_draft(conn: sqlite3.Connection, token: str) -> None:
+    conn.execute("DELETE FROM drafts WHERE token = ?", (token,))

@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}Drafts — steelshelf{% endblock %}
+{% block content %}
+<h1>Drafts</h1>
+{% if saved %}
+<p role="status">Saved <a href="/items/{{ saved.id }}"><strong>{{ saved.title }}</strong></a>.</p>
+{% endif %}
+{% if drafts %}
+<p class="muted">Cases queued from <a href="/add">Add</a>, oldest first.
+{%- if queue %} {{ queue.queued }} waiting · {{ queue.ready }} ready
+{%- if queue.failed %} · {{ queue.failed }} failed{% endif %}.{% endif %}
+Open each to check what was found and save it; reload to see the queue move.</p>
+<ul class="drafts">
+  {% for d in drafts %}
+  <li class="card draft {{ d.status }}">
+    {% if not d.gone %}<img src="/drafts/{{ d.token }}/thumb" alt="" loading="lazy">{% endif %}
+    <div class="what">
+      {% if d.gone %}
+      <strong>Photos gone</strong>
+      <span class="muted small">the draft's directory is missing; only discard is left</span>
+      {% else %}
+      <a href="/add?draft={{ d.token }}"><strong>{{ d.title or "Untitled" }}</strong></a>
+      {% if d.edition %}<span class="small">{{ d.edition }}</span>{% endif %}
+      <span class="muted small">
+        {%- if d.status == "ready" %}ready · {{ d.doubts }} doubt{{ "s" if d.doubts != 1 }}
+        {%- if d.via %} · by {{ d.via }}{% endif %}
+        {%- elif d.status == "failed" %}failed: {{ d.error }} — open it to type it in
+        {%- elif d.status == "identifying" %}being identified now
+        {%- else %}queued{% endif %} · shot {{ d.created_at | local_date }}</span>
+      {% endif %}
+    </div>
+    <form method="post" action="/drafts/{{ d.token }}/discard">
+      <button class="btn tiny" type="submit">Discard</button>
+    </form>
+  </li>
+  {% endfor %}
+</ul>
+{% else %}
+<p class="muted">Nothing queued. <strong>Queue and next</strong> on <a href="/add">Add</a>
+holds a case's photos here while they are identified, to confirm later.</p>
+{% endif %}
+{% endblock %}

@@ -8,7 +8,9 @@ decisions are in [identification.md](identification.md) and
 ## Layout
 
 - `app/` — FastAPI app.
-  - `main.py` — routes, lifespan; the route table is its docstring.
+  - `main.py` — routes, lifespan; the route table is its docstring. Also the
+    bulk-capture queue: one background thread (`identify_queue`) that
+    identifies queued drafts one at a time, reset at startup.
   - `auth.py` — HTTP Basic on every write and third-party call; fails closed
     with 503 until `ADMIN_USER` / `ADMIN_PASSWORD` are set.
   - `photos.py` — uploads on disk as `PHOTO_DIR/<item id>/<kind>-<hex>.<ext>`,
@@ -17,7 +19,8 @@ decisions are in [identification.md](identification.md) and
     every page shows (the item page's photo viewer loads the originals), a
     front-edge strip per item, and the spine cut from the
     spine photo — made at save, backfilled at startup off the request path,
-    made on first request when missing.
+    made on first request when missing. Drafts — photos held for review,
+    `PHOTO_DIR/_drafts/<token>/` — are pruned after a day unless queued.
   - `spine.py` — finds the case in a spine photo, cuts it, and judges whether
     its print reads at shelf size.
   - `reprice.py` — the monthly re-price: when it is due, the run, its log.
@@ -31,8 +34,9 @@ decisions are in [identification.md](identification.md) and
   - `present.py` — dates as the local date only (SQLite stamps are UTC, and
     the container is UTC too unless `TZ` is set in `.env`), and the chart
     geometry the templates draw as inline SVG.
-  - `db.py` — schema: `items`, `photos`, `valuations`, `listings`, and the
-    re-price log `reprice_runs` / `reprice_items`.
+  - `db.py` — schema: `items`, `photos`, `valuations`, `listings`, the
+    re-price log `reprice_runs` / `reprice_items`, and `drafts`, bulk
+    capture's queue.
   - `settings.py` — env via pydantic-settings.
   - `pricing.py` — the `PricingSource` interface; `current_worth`, which
     valuation an item is worth; `EbayActive`, by UPC; `EbayKeyword`, which the

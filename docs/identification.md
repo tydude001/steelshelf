@@ -53,7 +53,7 @@ buries, its own **eBay search**. Pricing uses all three; see
 
 One `items` row, a `photos` row per photo. Edit anything the model got wrong
 before saving: **Identify from photos** holds the photos as a draft
-(`PHOTO_DIR/_drafts/<token>/`, pruned after a day), re-renders `/add` filled
+(`PHOTO_DIR/_drafts/<token>/`, pruned after a day unless queued), re-renders `/add` filled
 in with the model's doubts listed, and **Save** writes the item from the
 draft. A UPC that fails its GS1 check digit is dropped, not saved. A saved
 item's fields stay editable (**Edit** at the top of its page); its photos do
@@ -105,14 +105,17 @@ on `/stats` prices a freshly confirmed batch. Nothing here puts a third party
 on a page: the queue is a background job and `/drafts` renders from the
 table.
 
-**At the desk.** `/drafts` lists the queue oldest first: the front thumbnail,
-the title and edition identify found, how many doubts, who answered, and the
-status; it reloads itself (a meta refresh) while anything is still queued.
-Each opens the existing `/add` review form filled from `found` (`GET
-/add?draft=<token>`), and **Save** is the existing `POST /items` with that
-draft, which now also deletes the row. Every case is confirmed one by one:
-the model's answer is a draft to check, here as on the phone. **Discard**
-drops the row and the photos.
+**At the desk.** `/drafts` (admin, like `/add`) lists the queue oldest first:
+the front thumbnail (made on first request, kept in the draft's directory as
+`thumb.jpg`), the title and edition identify found, how many doubts, who
+answered, and the status. Each opens the existing `/add` review form filled
+from `found` (`GET /add?draft=<token>`); one not yet identified opens empty
+with its photos held, to type by hand. **Save** is the existing `POST /items`
+with that draft, which also deletes the row in the same transaction and, for
+a queued draft, returns to `/drafts` naming what was saved (a single-case
+save still goes to the item). Every case is confirmed one by one: the model's
+answer is a draft to check, here as on the phone. **Discard** drops the row
+and the photos.
 
 **When it goes wrong.**
 
@@ -122,11 +125,14 @@ drops the row and the photos.
   case is shot again; the browser keeps no file input across a failed post.
 - **Identify fails** — no key or worker, the worker down with no API to fall
   back to, a refusal: `failed` with the reason. The draft still opens in the
-  form to type by hand, and **Identify again** re-queues it.
+  form to type by hand, and **Identify again** re-queues it. An exception that
+  is not an `IdentifyError` (a bug) fails the draft too, as "unexpected error",
+  so the queue moves on instead of leaving it `identifying`.
 - **The app restarts mid-queue:** startup puts any `identifying` row back to
   `queued`; at most one call is repeated.
 - **Photos gone** (a draft directory deleted by hand): `failed`, "photos
-  gone", and only **Discard** is offered.
+  gone", with no identify call made, and only **Discard** is offered —
+  `/drafts` checks the directory, so it says so before the queue gets there.
 - **The same case shot twice,** easy when working along a shelf: a draft
   whose UPC, or title and edition, matches an item or an earlier draft is
   marked *possibly a repeat* on `/drafts`.
@@ -137,12 +143,15 @@ drops the row and the photos.
   worker over its limit, `Fallback` answers from the API at cents per case,
   and `/drafts` names who answered each.
 
-**First build slice:** the `drafts` table, **Queue and next** (`POST
-/drafts`), the queue thread with the startup reset, `/drafts` with **Save**
-through the existing form and **Discard**, and `prune_drafts` sparing queued
-directories. Repeat detection, **Identify again**, and the meta refresh
-follow; a save-without-review shortcut for drafts with no doubts is left
-out until the confirm rate on a real shelf says it is safe.
+**Built in the first slice:** the `drafts` table, **Queue and next** (`POST
+/drafts`, 303 to `/add?queued=1`), the queue thread (`main.identify_queue`,
+one long-lived daemon woken by an event; `drain_queue` is the synchronous
+loop the tests drive) with the startup reset, `/drafts` with **Save** through
+the existing form and **Discard**, and `prune_drafts` sparing queued
+directories. Not built: repeat detection, **Identify again** for a failed
+draft, and the meta refresh — `/drafts` is reloaded by hand. A
+save-without-review shortcut for drafts with no doubts is left out until the
+confirm rate on a real shelf says it is safe.
 
 ## Vision model — the decision
 

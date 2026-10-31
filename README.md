@@ -34,7 +34,9 @@ drawn cases, since real steelbook art belongs to the studios and artists.
 - 🔎 **Identified for you.** The barcode is decoded locally when there is one;
   Claude reads the rest — title, format, edition, retailer exclusive or
   boutique label, region, condition — and lists what it was unsure of. You
-  check the form and save.<br>
+  check the form and save. Or tap **Queue and next** to shoot a whole shelf in
+  one go: each case is identified in the background, and you confirm the queue
+  later at **Drafts**.<br>
   <img alt="Identify: a drawn front photo of an invented case beside the add form as identify fills it, with two doubts listed above it" src="docs/img/identify.png" width="640"><br>
   <sub>A canned answer in the shape Claude returns, not a live call.</sub>
 - 💲 **Valued from eBay.** Current asks by default, matched to the item's own

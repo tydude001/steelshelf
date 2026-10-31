@@ -2,6 +2,15 @@
 {% block title %}Add a steelbook — steelshelf{% endblock %}
 {% block content %}
 <h1>Slot a new one in</h1>
+{% if queued_now %}<p class="queued-now" role="status">Queued. Next case.</p>{% endif %}
+{% if queue and not draft %}
+<p class="muted queue-count"><a href="/drafts">
+  {{- queue.queued }} queued · {{ queue.ready }} ready
+  {%- if queue.failed %} · {{ queue.failed }} failed{% endif %}</a></p>
+{% endif %}
+{% if queued_draft %}
+<p class="muted"><a href="/drafts">← Back to the queue</a></p>
+{% endif %}
 {% if errors %}
 <div class="errors">
   <ul>{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul>
@@ -17,6 +26,7 @@
 <p class="muted">Filled in from the photos — check every field before saving.</p>
 {% endif %}
 {% if via %}<p class="muted">Identified by {{ via }}.</p>{% endif %}
+{% if not (queued_draft and not held) %}
 <form method="post" action="/items" enctype="multipart/form-data">
   <fieldset>
     <legend>Photos</legend>
@@ -45,10 +55,21 @@
           formnovalidate>Identify from photos</button>
   <p id="identify-status" class="muted" role="status">Identify sends the photos to {{ ai_name() }}
   and fills in the details below for you to check; it can take up to a minute.</p>
+  <button id="queue" class="btn quiet wide" type="submit" formaction="/drafts"
+          formnovalidate>Queue and next</button>
+  <p class="muted small">Queue and next keeps the photos and the box tick, identifies them
+  in the background, and gives you an empty form for the next case; confirm the queue
+  later on <a href="/drafts">Drafts</a>.</p>
   {% endif %}
 {% include "_details.html" %}
   <button class="btn wide" type="submit">Put it on the shelf</button>
 </form>
+{% endif %}
+{% if queued_draft %}
+<form method="post" action="/drafts/{{ draft }}/discard">
+  <button class="btn tiny" type="submit">Discard this draft</button>
+</form>
+{% endif %}
 {% if not held %}
 <script>
   // A plain form POST that blocks on the model: say so, and stop a second submit.
@@ -62,6 +83,8 @@
       status.textContent = "Photos sent — {{ ai_name() }} is reading them. This can take up to a " +
         "minute; the details will fill in when it's done.";
       status.classList.add("working");
+    } else if (e.submitter && e.submitter.id === "queue") {
+      e.submitter.textContent = "Uploading…";
     }
     // Disable after the submission has captured its submitter.
     setTimeout(() => form.querySelectorAll("button").forEach((b) => b.disabled = true));

@@ -19,6 +19,7 @@ import re
 import shutil
 import time
 import uuid
+from collections.abc import Collection
 from pathlib import Path
 
 import pillow_heif
@@ -222,17 +223,21 @@ def ensure_spine(photo_dir: str, item_id: int, front: Path) -> Path | None:
 
 # --- drafts -------------------------------------------------------------------
 # Photos sent to /add/identify are held here until the item is saved, so the
-# review step does not make the phone take them again. They are not in the
-# database: a draft that is never saved is pruned after DRAFT_MAX_AGE.
+# review step does not make the phone take them again; a draft that is never saved
+# is pruned after DRAFT_MAX_AGE. A case queued by bulk capture (POST /drafts) has a
+# `drafts` row and waits days for its desk session, so pruning passes its token in
+# `keep` and leaves it until it is saved or discarded.
 
 DRAFT_DIR = "_drafts"
 DRAFT_MAX_AGE = 24 * 3600
 _TOKEN = re.compile(r"[0-9a-f]{32}")
 
 
-def save_draft(photo_dir: str, uploads: list[tuple[str, str, bytes]]) -> str:
-    """Hold (kind, ext, data) uploads under a new draft token and return it."""
-    prune_drafts(photo_dir)
+def save_draft(photo_dir: str, uploads: list[tuple[str, str, bytes]],
+               keep: Collection[str] = ()) -> str:
+    """Hold (kind, ext, data) uploads under a new draft token and return it; stale
+    drafts go first, except the tokens in `keep`."""
+    prune_drafts(photo_dir, keep=keep)
     token = uuid.uuid4().hex
     d = Path(photo_dir) / DRAFT_DIR / token
     d.mkdir(parents=True)
@@ -257,11 +262,29 @@ def discard_draft(photo_dir: str, token: str) -> None:
         shutil.rmtree(Path(photo_dir) / DRAFT_DIR / token, ignore_errors=True)
 
 
-def prune_drafts(photo_dir: str, max_age: float = DRAFT_MAX_AGE) -> None:
+def prune_drafts(photo_dir: str, max_age: float = DRAFT_MAX_AGE,
+                 keep: Collection[str] = ()) -> None:
+    """Delete draft directories older than max_age, except the tokens in `keep`."""
     root = Path(photo_dir) / DRAFT_DIR
     if not root.is_dir():
         return
     cutoff = time.time() - max_age
     for d in root.iterdir():
-        if d.is_dir() and d.stat().st_mtime < cutoff:
+        if d.is_dir() and d.name not in keep and d.stat().st_mtime < cutoff:
             shutil.rmtree(d, ignore_errors=True)
+
+
+def draft_thumb(photo_dir: str, token: str) -> Path | None:
+    """A queued draft's front photo as a thumbnail, made on first request and kept in
+    the draft's directory (`thumb.jpg`, which `load_draft` does not count as a photo);
+    the original when it will not decode; None when the draft has no front photo."""
+    if not _TOKEN.fullmatch(token):
+        return None
+    d = Path(photo_dir) / DRAFT_DIR / token
+    dest = d / "thumb.jpg"
+    if dest.is_file():
+        return dest
+    front = next((p for p in d.glob("front.*")), None) if d.is_dir() else None
+    if front is None:
+        return None
+    return dest if write_derived(dest, thumbnail(front.read_bytes())) else front

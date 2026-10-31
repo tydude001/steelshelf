@@ -7,12 +7,21 @@
                            director                                   (open)
   GET  /stats              the shelf in numbers: value by label, how
                            sure the prices are, format/region/condition (open)
-  GET  /add                phone photo form: front / spine / back     (HTTP Basic)
+  GET  /add                phone photo form: front / spine / back, and the
+                           queue's count; ?draft= opens a queued case
+                           filled from what identify found            (HTTP Basic)
   POST /add/identify       hold the photos as a draft, decode the barcode
                            locally, ask Claude what they show, re-render
                            /add filled in                              (HTTP Basic)
   POST /items              save an item and its photos (uploaded, or
-                           held by a draft), 303 to it                (HTTP Basic)
+                           held by a draft), 303 to it; a queued draft's
+                           row goes, and it 303s back to /drafts      (HTTP Basic)
+  POST /drafts             Queue and next: hold the photos as a queued
+                           draft for the background identify, 303 to an
+                           empty /add                                 (HTTP Basic)
+  GET  /drafts             the queue, oldest first, to confirm each   (HTTP Basic)
+  GET  /drafts/{token}/thumb  a queued draft's front, as a thumbnail  (HTTP Basic)
+  POST /drafts/{token}/discard  drop a queued draft and its photos    (HTTP Basic)
   GET  /items/{id}         one item: photos, fields, valuation history (open)
   GET  /items/{id}/edit    the item's fields, to correct              (HTTP Basic)
   POST /items/{id}         save the edited fields, 303 to the item    (HTTP Basic)
@@ -51,10 +60,12 @@
 
 Pages render from the database only. The third-party calls (identification,
 pricing, TMDB) run from a POST or a background job (the monthly re-price,
-`app/reprice.py`; the film lookup after a save, `app/film.py`), per the repo rule.
+`app/reprice.py`; the film lookup after a save, `app/film.py`; the drafts queue,
+`identify_queue`), per the repo rule.
 """
 
 import hashlib
+import json
 import logging
 import sqlite3
 import threading
@@ -155,6 +166,7 @@ async def lifespan(app: FastAPI):
     # photo, so off the startup path; a page that asks first makes its own.
     threading.Thread(target=backfill_derived, name="derived", daemon=True).start()
     look_up_films()  # genre and director for items saved before they existed
+    resume_queue()  # drafts a stop left queued or mid-identify
     app.state.scheduler = reprice.Scheduler(
         settings.database_path, lambda: reprice_job(), settings.reprice_day,
         settings.reprice_hour,
@@ -238,6 +250,87 @@ def look_up_films() -> None:
             fill_films()
 
     threading.Thread(target=run, name="films", daemon=True).start()
+
+
+# --- the drafts queue (docs/identification.md § Bulk capture) -------------------------
+# One background thread identifies queued drafts one at a time, exactly as
+# POST /add/identify does a single case; no pricing here, an item is priced once saved.
+
+_queue_wake = threading.Event()
+_queue_start = threading.Lock()
+_queue_thread: threading.Thread | None = None
+
+
+def identify_queue() -> None:
+    """Wake the queue's thread, starting it if it is not running."""
+    global _queue_thread
+    _queue_wake.set()
+    with _queue_start:
+        if _queue_thread is None or not _queue_thread.is_alive():
+            _queue_thread = threading.Thread(target=_queue_loop, name="drafts", daemon=True)
+            _queue_thread.start()
+
+
+def _queue_loop() -> None:
+    while True:
+        _queue_wake.wait()
+        _queue_wake.clear()  # before draining: a draft queued meanwhile wakes it again
+        try:
+            drain_queue()
+        except Exception:
+            log.exception("drafts queue: stopped on an error; it runs again on the next draft")
+
+
+def resume_queue() -> None:
+    """At startup: a draft left `identifying` by a stop goes back to `queued` (its call
+    is made again), and the queue runs if anything waits."""
+    with db.connect(settings.database_path) as conn:
+        n = db.requeue_identifying(conn)
+        waiting = db.draft_counts(conn).get("queued", 0)
+    if n:
+        log.info("drafts queue: %d left mid-identify, queued again", n)
+    if waiting:
+        identify_queue()
+
+
+def drain_queue(identifier: Identifier | None = None) -> int:
+    """Identify queued drafts, oldest first, until none is left; how many were taken."""
+    taken = 0
+    while True:
+        with db.connect(settings.database_path) as conn:
+            row = db.claim_draft(conn)
+        if row is None:
+            return taken
+        taken += 1
+        identify_draft(row, identifier or get_identifier())
+
+
+def identify_draft(row, identifier: Identifier) -> None:
+    """Run POST /add/identify's steps on one claimed draft and record the outcome."""
+    token = row["token"]
+    held = photos.load_draft(settings.photo_dir, token)
+    code = found = error = None
+    if not held or not any(k == "front" for k, _, _ in held):
+        error = "photos gone"
+    else:
+        shots = [(k, data) for k, _, data in held]
+        code = barcode.decode_any(shots)
+        try:
+            answer = barcode.apply(identifier.identify(shots, boxed=bool(row["boxed"])), code)
+        except IdentifyError as exc:
+            error = str(exc)
+        except Exception as exc:  # a bug must fail the draft, not leave it identifying
+            log.exception("drafts queue: identify of %s raised", token)
+            error = f"unexpected error: {exc}"
+        else:
+            found = json.dumps({"values": answer.values, "doubts": answer.doubts,
+                                "via": answer.via})
+    with db.connect(settings.database_path) as conn:
+        db.finish_draft(conn, token, code, found, error)
+    if error:
+        log.warning("drafts queue: %s failed: %s", token, error)
+    else:
+        log.info("drafts queue: %s ready", token)
 
 
 def measure_spine(item_id: int, data: bytes, box: spine.Box | None) -> None:
@@ -590,8 +683,12 @@ def _shelf_floor(items) -> list[dict]:
 
 
 def _add_page(
-    request, values=None, errors=(), draft=None, doubts=(), via="", status_code=200
+    request, values=None, errors=(), draft=None, doubts=(), via="", status_code=200,
+    queued_now=False,
 ):
+    with db.connect(settings.database_path) as conn:
+        counts = db.draft_counts(conn)
+        row = db.get_draft(conn, draft) if draft else None
     ctx = {
         "values": values or {},
         "errors": list(errors),
@@ -600,8 +697,26 @@ def _add_page(
         "draft": draft,
         "held": [k for k, _, _ in photos.load_draft(settings.photo_dir, draft) or []]
         if draft else [],
+        "queued_draft": row,  # a case from the queue: offer Discard and the way back
+        "queue": _queue_counts(counts),
+        "queued_now": queued_now,
     }
     return TEMPLATES.TemplateResponse(request, "add.html", ctx, status_code=status_code)
+
+
+def _queue_counts(counts: dict[str, int]) -> dict[str, int] | None:
+    """What the add form says of the queue: waiting (queued or being identified),
+    ready and failed; None when it is empty."""
+    out = {"queued": counts.get("queued", 0) + counts.get("identifying", 0),
+           "ready": counts.get("ready", 0), "failed": counts.get("failed", 0)}
+    return out if any(out.values()) else None
+
+
+def _hold_draft(uploads) -> str:
+    """Hold the photos as a draft; pruning the stale ones spares every queued draft."""
+    with db.connect(settings.database_path) as conn:
+        keep = db.draft_tokens(conn)
+    return photos.save_draft(settings.photo_dir, uploads, keep=keep)
 
 
 async def _read_uploads(files) -> tuple[list[tuple[str, str, bytes]], list[str]]:
@@ -658,8 +773,98 @@ def _item_errors(values: dict) -> list[str]:
 
 
 @app.get("/add", response_class=HTMLResponse)
-def add_form(request: Request, _: str = Depends(require_admin)):
-    return _add_page(request)
+def add_form(request: Request, _: str = Depends(require_admin), draft: str = "",
+             queued: str = ""):
+    if not draft:
+        return _add_page(request, queued_now=bool(queued))
+    with db.connect(settings.database_path) as conn:
+        row = db.get_draft(conn, draft)
+    if row is None:
+        raise HTTPException(404, "no such draft: saved or discarded already")
+    if photos.load_draft(settings.photo_dir, draft) is None:
+        return _add_page(request, draft=draft, errors=["photos gone: discard this draft"],
+                         status_code=410)
+    found = json.loads(row["found"]) if row["found"] else {}
+    values = found.get("values") or ({"upc": row["upc"]} if row["upc"] else None)
+    errors = [f"identify failed: {row['error']}"] if row["status"] == "failed" else []
+    if row["status"] in ("queued", "identifying"):
+        errors = ["not identified yet: fill it in by hand, or come back when it is ready"]
+    return _add_page(request, values=values, errors=errors, draft=draft,
+                     doubts=found.get("doubts", ()), via=found.get("via", ""))
+
+
+@app.post("/drafts")
+async def queue_draft(
+    request: Request,
+    _: str = Depends(require_admin),
+    front: UploadFile | None = File(None),
+    spine: UploadFile | None = File(None),
+    back: UploadFile | None = File(None),
+    other: UploadFile | None = File(None),
+    boxed: str = Form(""),
+):
+    """Queue and next: hold the photos, queue them for identify, and hand back an empty
+    form at once; identifying happens behind, in `identify_queue`'s thread."""
+    uploads, errors = await _read_uploads((front, spine, back, other))
+    if not errors and not any(k == "front" for k, _, _ in uploads):
+        errors.append("a front photo is required to queue a case")
+    if errors:
+        return _add_page(request, errors=errors, status_code=422)
+    draft_id = _hold_draft(uploads)
+    try:
+        with db.connect(settings.database_path) as conn:
+            db.insert_draft(conn, draft_id, bool(boxed))
+    except Exception:
+        photos.discard_draft(settings.photo_dir, draft_id)
+        raise
+    log.info("drafts queue: %s queued with %d photos", draft_id, len(uploads))
+    identify_queue()
+    return RedirectResponse("/add?queued=1", status_code=303)
+
+
+@app.get("/drafts", response_class=HTMLResponse)
+def drafts_page(request: Request, _: str = Depends(require_admin), saved: int | None = None):
+    """The queue, oldest first, from the table alone; no call is made here. `saved`
+    names the item a save from the queue just made."""
+    with db.connect(settings.database_path) as conn:
+        rows = db.list_drafts(conn)
+        just_saved = db.get_item(conn, saved) if saved else None
+    drafts = []
+    for r in rows:
+        found = json.loads(r["found"]) if r["found"] else {}
+        values = found.get("values") or {}
+        drafts.append({
+            "token": r["token"], "status": r["status"], "error": r["error"],
+            "title": values.get("title"), "edition": values.get("edition"),
+            "doubts": len(found.get("doubts") or ()), "via": found.get("via"),
+            "created_at": r["created_at"],
+            "gone": photos.load_draft(settings.photo_dir, r["token"]) is None,
+        })
+    with db.connect(settings.database_path) as conn:
+        counts = _queue_counts(db.draft_counts(conn))
+    return TEMPLATES.TemplateResponse(request, "drafts.html",
+                                      {"drafts": drafts, "queue": counts,
+                                       "saved": just_saved})
+
+
+@app.get("/drafts/{token}/thumb")
+def draft_thumb(token: str, _: str = Depends(require_admin)):
+    path = photos.draft_thumb(settings.photo_dir, token)
+    if path is None:
+        raise HTTPException(404, "no front photo for this draft")
+    return FileResponse(path)
+
+
+@app.post("/drafts/{token}/discard")
+def drop_draft(token: str, _: str = Depends(require_admin)):
+    """Drop a queued draft's row and its photos."""
+    with db.connect(settings.database_path) as conn:
+        if db.get_draft(conn, token) is None:
+            raise HTTPException(404, "no such draft")
+        db.delete_draft(conn, token)
+    photos.discard_draft(settings.photo_dir, token)
+    log.info("drafts queue: %s discarded", token)
+    return RedirectResponse("/drafts", status_code=303)
 
 
 @app.post("/add/identify")
@@ -679,7 +884,7 @@ async def identify(
     if errors:
         return _add_page(request, errors=errors, status_code=422)
 
-    draft = photos.save_draft(settings.photo_dir, uploads)
+    draft = _hold_draft(uploads)
     shots = [(k, data) for k, _, data in uploads]
     code = await run_in_threadpool(barcode.decode_any, shots)
     try:
@@ -758,7 +963,11 @@ async def create_item(
     conn = db.connect(settings.database_path)
     item_id = None
     saved: list[tuple[int, str, bytes]] = []
+    queued = False
     try:
+        if draft:  # a case from the bulk-capture queue: its row goes with the save
+            queued = db.get_draft(conn, draft) is not None
+            db.delete_draft(conn, draft)
         item_id = db.insert_item(conn, values)
         if values["genre"] or values["director"]:
             db.set_film_by_hand(conn, item_id)  # typed on the add form: TMDB stays out
@@ -779,6 +988,9 @@ async def create_item(
     await run_in_threadpool(write_derived_for, item_id, saved)
     log.info("item %d saved with %d photos", item_id, len(uploads))
     look_up_films()
+    # At the desk the next case is the point: back to the queue, naming what was saved.
+    if queued:
+        return RedirectResponse(f"/drafts?saved={item_id}", status_code=303)
     return RedirectResponse(f"/items/{item_id}", status_code=303)
 
 
