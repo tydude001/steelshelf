@@ -27,6 +27,11 @@ Open each to check what was found and save it; reload to see the queue move.</p>
         {%- elif d.status == "failed" %}failed: {{ d.error }} — open it to type it in
         {%- elif d.status == "identifying" %}being identified now
         {%- else %}queued{% endif %} · shot {{ d.created_at | local_date }}</span>
+      {% if d.repeat %}
+      <span class="small repeat">Possibly a repeat: same {{ d.repeat.by }} as
+        {%- if d.repeat.item %} <a href="/items/{{ d.repeat.item.id }}">{{ d.repeat.item.title }}</a>, on the shelf
+        {%- else %} <a href="/add?draft={{ d.repeat.draft.token }}">{{ d.repeat.draft.title }}</a>, queued earlier{% endif %}.</span>
+      {% endif %}
       {% endif %}
     </div>
     <form method="post" action="/drafts/{{ d.token }}/discard">

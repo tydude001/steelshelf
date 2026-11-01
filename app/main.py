@@ -965,15 +965,49 @@ def drafts_page(request: Request, _: str = Depends(require_admin), saved: int | 
         drafts.append({
             "token": r["token"], "status": r["status"], "error": r["error"],
             "title": values.get("title"), "edition": values.get("edition"),
+            "upc": values.get("upc") or r["upc"],
             "doubts": len(found.get("doubts") or ()), "via": found.get("via"),
             "created_at": r["created_at"],
             "gone": photos.load_draft(settings.photo_dir, r["token"]) is None,
         })
     with db.connect(settings.database_path) as conn:
         counts = _queue_counts(db.draft_counts(conn))
+        _mark_repeats(drafts, db.item_identities(conn))
     return TEMPLATES.TemplateResponse(request, "drafts.html",
                                       {"drafts": drafts, "queue": counts,
                                        "saved": just_saved})
+
+
+def _case_key(title, edition) -> tuple[str, ...] | None:
+    """Same film and edition: import's repeat_key without the retailer, which identify
+    can read off one shot of a case and miss on the next. None with no title."""
+    return csvio.repeat_key(title, edition, None) if (title or "").strip() else None
+
+
+def _mark_repeats(drafts: list[dict], items) -> None:
+    """Set each draft's `repeat`: the shelf case or earlier draft it may be a second
+    shot of, by UPC or else by title and edition, or None. A warning only; saving is
+    not held up. `drafts` is oldest first, so the later of two shots is the one marked."""
+    by_upc = {it["upc"]: it for it in items if it["upc"]}
+    by_key = {k: it for it in items if (k := _case_key(it["title"], it["edition"]))}
+    seen_upc: dict[str, dict] = {}
+    seen_key: dict[tuple, dict] = {}
+    for d in drafts:
+        upc, key = d["upc"], _case_key(d["title"], d["edition"])
+        repeat = None
+        if upc and upc in by_upc:
+            repeat = {"item": by_upc[upc], "by": "UPC"}
+        elif key and key in by_key:
+            repeat = {"item": by_key[key], "by": "title and edition"}
+        elif upc and upc in seen_upc:
+            repeat = {"draft": seen_upc[upc], "by": "UPC"}
+        elif key and key in seen_key:
+            repeat = {"draft": seen_key[key], "by": "title and edition"}
+        d["repeat"] = repeat
+        if upc:
+            seen_upc.setdefault(upc, d)
+        if key:
+            seen_key.setdefault(key, d)
 
 
 @app.get("/drafts/{token}/thumb")

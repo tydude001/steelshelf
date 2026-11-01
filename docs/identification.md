@@ -133,9 +133,13 @@ and the photos.
 - **Photos gone** (a draft directory deleted by hand): `failed`, "photos
   gone", with no identify call made, and only **Discard** is offered —
   `/drafts` checks the directory, so it says so before the queue gets there.
-- **The same case shot twice,** easy when working along a shelf: a draft
-  whose UPC, or title and edition, matches an item or an earlier draft is
-  marked *possibly a repeat* on `/drafts`.
+- **The same case shot twice,** easy when working along a shelf: an
+  identified draft whose UPC, or title and edition, matches an item or an
+  earlier draft is marked *possibly a repeat* on `/drafts`, naming and linking
+  the case it matches. Title and edition are import's `csvio.repeat_key`
+  without the retailer, which identify can read off one shot of a case and
+  miss on the next. Only the later of two drafts is marked, and the mark
+  warns: the draft saves as any other.
 - **Photos of two cases in one draft** (front of one, back of the next): not
   detectable; the review form shows every held photo, which is where it is
   seen.
@@ -148,7 +152,7 @@ and the photos.
 one long-lived daemon woken by an event; `drain_queue` is the synchronous
 loop the tests drive) with the startup reset, `/drafts` with **Save** through
 the existing form and **Discard**, and `prune_drafts` sparing queued
-directories. Not built: repeat detection, **Identify again** for a failed
+directories; then the repeat mark. Not built: **Identify again** for a failed
 draft, and the meta refresh — `/drafts` is reloaded by hand. A
 save-without-review shortcut for drafts with no doubts is left out until the
 confirm rate on a real shelf says it is safe.

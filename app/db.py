@@ -486,5 +486,11 @@ def requeue_identifying(conn: sqlite3.Connection) -> int:
         "UPDATE drafts SET status = 'queued' WHERE status = 'identifying'").rowcount
 
 
+def item_identities(conn: sqlite3.Connection) -> list[sqlite3.Row]:
+    """Each item's id, title, edition and UPC: what a draft is checked against for a
+    case shot twice."""
+    return conn.execute("SELECT id, title, edition, upc FROM items ORDER BY id").fetchall()
+
+
 def delete_draft(conn: sqlite3.Connection, token: str) -> None:
     conn.execute("DELETE FROM drafts WHERE token = ?", (token,))

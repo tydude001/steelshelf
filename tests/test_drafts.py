@@ -395,3 +395,77 @@ def test_prune_drafts_keeps_the_tokens_it_is_given(tmp_path):
     photos.prune_drafts(str(tmp_path), max_age=-1, keep={a})
     assert photos.load_draft(str(tmp_path), a) is not None
     assert photos.load_draft(str(tmp_path), b) is None
+
+
+# --- a case shot twice ----------------------------------------------------------------
+
+
+def identified(**values):
+    return Identification({**FOUND.values, **values}, [], via="stub")
+
+
+def shelve(**fields) -> int:
+    with db.connect(settings_module.settings.database_path) as conn:
+        return db.insert_item(conn, fields)
+
+
+def test_a_draft_matching_an_earlier_draft_is_flagged_by_title_and_edition(admin, woken):
+    queue(admin)
+    first = queued_token()
+    main.drain_queue(StubIdentifier(identified(upc="", retailer="Zavvi")))
+    queue(admin)
+    second = queued_token()
+    # The same film and edition; the retailer read differently does not hide it.
+    main.drain_queue(StubIdentifier(identified(upc="", title=" alien ", retailer="")))
+    page = admin.get("/drafts", auth=AUTH).text
+    assert page.count("Possibly a repeat") == 1  # the later shot, not both
+    assert "same title and edition as" in page
+    assert f'<a href="/add?draft={first}">Alien</a>, queued earlier' in page
+    assert page.index(second) < page.index("Possibly a repeat")
+
+
+def test_a_draft_matching_a_shelf_case_by_upc_is_flagged(admin, woken):
+    item_id = shelve(title="Alien (1979)", upc="036000291452")
+    queue(admin)
+    main.drain_queue(StubIdentifier(identified()))
+    page = admin.get("/drafts", auth=AUTH).text
+    assert "Possibly a repeat: same UPC as" in page
+    assert f'<a href="/items/{item_id}">Alien (1979)</a>, on the shelf' in page
+
+
+def test_a_draft_matching_a_shelf_case_by_title_and_edition_is_flagged(admin, woken):
+    shelve(title="Alien", edition="STEELBOOK")
+    queue(admin)
+    main.drain_queue(StubIdentifier(identified(upc="")))
+    page = admin.get("/drafts", auth=AUTH).text
+    assert "Possibly a repeat: same title and edition as" in page and "on the shelf" in page
+
+
+def test_a_different_edition_is_not_a_repeat(admin, woken):
+    shelve(title="Alien", edition="Steelbook")
+    queue(admin)
+    main.drain_queue(StubIdentifier(identified(upc="", edition="Mondo Steelbook")))
+    queue(admin)
+    main.drain_queue(StubIdentifier(identified(upc="", title="Aliens")))
+    assert "Possibly a repeat" not in admin.get("/drafts", auth=AUTH).text
+
+
+def test_drafts_not_yet_identified_are_never_repeats(admin, woken):
+    queue(admin)
+    queue(admin)
+    assert "Possibly a repeat" not in admin.get("/drafts", auth=AUTH).text
+
+
+def test_a_flagged_repeat_still_saves(admin, woken):
+    queue(admin)
+    main.drain_queue(StubIdentifier(identified()))
+    queue(admin)
+    second = queued_token()
+    main.drain_queue(StubIdentifier(identified()))
+    assert "Possibly a repeat" in admin.get("/drafts", auth=AUTH).text
+    r = admin.post("/items", data={**FOUND.values, "draft": second}, auth=AUTH,
+                   follow_redirects=False)
+    assert r.status_code == 303
+    assert len(rows("SELECT * FROM items")) == 1
+    # The first draft now repeats the saved case.
+    assert "on the shelf" in admin.get("/drafts", auth=AUTH).text
