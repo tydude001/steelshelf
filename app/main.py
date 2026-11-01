@@ -21,6 +21,8 @@
                            empty /add                                 (HTTP Basic)
   GET  /drafts             the queue, oldest first, to confirm each   (HTTP Basic)
   GET  /drafts/{token}/thumb  a queued draft's front, as a thumbnail  (HTTP Basic)
+  POST /drafts/{token}/identify  Identify again: a failed draft whose
+                           photos are held goes back in the queue      (HTTP Basic)
   POST /drafts/{token}/discard  drop a queued draft and its photos    (HTTP Basic)
   GET  /items/{id}         one item: photos, fields, valuation history (open)
   GET  /items/{id}/edit    the item's fields, to correct              (HTTP Basic)
@@ -1016,6 +1018,27 @@ def draft_thumb(token: str, _: str = Depends(require_admin)):
     if path is None:
         raise HTTPException(404, "no front photo for this draft")
     return FileResponse(path)
+
+
+@app.post("/drafts/{token}/identify")
+def requeue_draft(token: str, _: str = Depends(require_admin)):
+    """Identify again: a failed draft whose photos are still held goes back in the
+    queue; one whose photos are gone can only be discarded."""
+    with db.connect(settings.database_path) as conn:
+        row = db.get_draft(conn, token)
+    if row is None:
+        raise HTTPException(404, "no such draft")
+    if row["status"] != "failed":
+        raise HTTPException(409, f"this draft is {row['status']}, not failed")
+    held = photos.load_draft(settings.photo_dir, token)
+    if not held or not any(k == "front" for k, _, _ in held):
+        raise HTTPException(410, "photos gone: discard this draft")
+    with db.connect(settings.database_path) as conn:
+        if not db.requeue_failed(conn, token):
+            raise HTTPException(409, "this draft is no longer failed")
+    log.info("drafts queue: %s queued again", token)
+    identify_queue()
+    return RedirectResponse("/drafts", status_code=303)
 
 
 @app.post("/drafts/{token}/discard")

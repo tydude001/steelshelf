@@ -125,14 +125,17 @@ and the photos.
   case is shot again; the browser keeps no file input across a failed post.
 - **Identify fails** — no key or worker, the worker down with no API to fall
   back to, a refusal: `failed` with the reason. The draft still opens in the
-  form to type by hand, and **Identify again** re-queues it. An exception that
+  form to type by hand, and **Identify again** on `/drafts` (`POST
+  /drafts/<token>/identify`) puts it back in the queue, its error cleared and
+  its attempts counting on. An exception that
   is not an `IdentifyError` (a bug) fails the draft too, as "unexpected error",
   so the queue moves on instead of leaving it `identifying`.
 - **The app restarts mid-queue:** startup puts any `identifying` row back to
   `queued`; at most one call is repeated.
 - **Photos gone** (a draft directory deleted by hand): `failed`, "photos
   gone", with no identify call made, and only **Discard** is offered —
-  `/drafts` checks the directory, so it says so before the queue gets there.
+  `/drafts` checks the directory, so it says so before the queue gets there,
+  and **Identify again** is refused for it.
 - **The same case shot twice,** easy when working along a shelf: an
   identified draft whose UPC, or title and edition, matches an item or an
   earlier draft is marked *possibly a repeat* on `/drafts`, naming and linking
@@ -152,8 +155,8 @@ and the photos.
 one long-lived daemon woken by an event; `drain_queue` is the synchronous
 loop the tests drive) with the startup reset, `/drafts` with **Save** through
 the existing form and **Discard**, and `prune_drafts` sparing queued
-directories; then the repeat mark. Not built: **Identify again** for a failed
-draft, and the meta refresh — `/drafts` is reloaded by hand. A
+directories; then the repeat mark and **Identify again**. Not built: the
+meta refresh — `/drafts` is reloaded by hand. A
 save-without-review shortcut for drafts with no doubts is left out until the
 confirm rate on a real shelf says it is safe.
 

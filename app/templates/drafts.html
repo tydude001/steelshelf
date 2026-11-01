@@ -24,7 +24,7 @@ Open each to check what was found and save it; reload to see the queue move.</p>
       <span class="muted small">
         {%- if d.status == "ready" %}ready · {{ d.doubts }} doubt{{ "s" if d.doubts != 1 }}
         {%- if d.via %} · by {{ d.via }}{% endif %}
-        {%- elif d.status == "failed" %}failed: {{ d.error }} — open it to type it in
+        {%- elif d.status == "failed" %}failed: {{ d.error }} — identify it again, or open it to type it in
         {%- elif d.status == "identifying" %}being identified now
         {%- else %}queued{% endif %} · shot {{ d.created_at | local_date }}</span>
       {% if d.repeat %}
@@ -34,9 +34,16 @@ Open each to check what was found and save it; reload to see the queue move.</p>
       {% endif %}
       {% endif %}
     </div>
-    <form method="post" action="/drafts/{{ d.token }}/discard">
-      <button class="btn tiny" type="submit">Discard</button>
-    </form>
+    <div class="actions">
+      {% if d.status == "failed" and not d.gone %}
+      <form method="post" action="/drafts/{{ d.token }}/identify">
+        <button class="btn tiny" type="submit">Identify again</button>
+      </form>
+      {% endif %}
+      <form method="post" action="/drafts/{{ d.token }}/discard">
+        <button class="btn tiny" type="submit">Discard</button>
+      </form>
+    </div>
   </li>
   {% endfor %}
 </ul>

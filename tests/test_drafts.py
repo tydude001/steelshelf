@@ -469,3 +469,63 @@ def test_a_flagged_repeat_still_saves(admin, woken):
     assert len(rows("SELECT * FROM items")) == 1
     # The first draft now repeats the saved case.
     assert "on the shelf" in admin.get("/drafts", auth=AUTH).text
+
+
+# --- Identify again -------------------------------------------------------------------
+
+
+def test_identify_again_needs_credentials(admin, woken):
+    queue(admin)
+    main.drain_queue(StubIdentifier(error="worker down"))
+    assert admin.post(f"/drafts/{queued_token()}/identify").status_code == 401
+    assert rows("SELECT status FROM drafts")[0]["status"] == "failed"
+
+
+def test_identify_again_puts_a_failed_draft_back_in_the_queue(admin, woken):
+    queue(admin)
+    draft_id = queued_token()
+    main.drain_queue(StubIdentifier(error="worker down"))
+    listing = admin.get("/drafts", auth=AUTH).text
+    assert f'action="/drafts/{draft_id}/identify"' in listing and "Identify again" in listing
+
+    woken.clear()
+    r = admin.post(f"/drafts/{draft_id}/identify", auth=AUTH, follow_redirects=False)
+    assert (r.status_code, r.headers["location"]) == (303, "/drafts")
+    (row,) = rows("SELECT * FROM drafts")
+    assert (row["status"], row["error"], row["identified_at"]) == ("queued", None, None)
+    assert woken == [1]  # the queue was woken
+    assert "Identify again" not in admin.get("/drafts", auth=AUTH).text
+
+    main.drain_queue(StubIdentifier(FOUND))
+    (row,) = rows("SELECT * FROM drafts")
+    assert (row["status"], row["attempts"]) == ("ready", 2)
+    assert json.loads(row["found"])["values"]["title"] == "Alien"
+
+
+def test_identify_again_is_only_for_a_failed_draft(admin, woken):
+    queue(admin)
+    draft_id = queued_token()
+    assert "Identify again" not in admin.get("/drafts", auth=AUTH).text
+    r = admin.post(f"/drafts/{draft_id}/identify", auth=AUTH, follow_redirects=False)
+    assert r.status_code == 409
+    main.drain_queue(StubIdentifier(FOUND))
+    assert "Identify again" not in admin.get("/drafts", auth=AUTH).text
+    r = admin.post(f"/drafts/{draft_id}/identify", auth=AUTH, follow_redirects=False)
+    assert r.status_code == 409
+    assert rows("SELECT status FROM drafts")[0]["status"] == "ready"
+    assert admin.post(f"/drafts/{'0' * 32}/identify", auth=AUTH).status_code == 404
+
+
+def test_identify_again_is_not_offered_when_the_photos_are_gone(admin, woken):
+    queue(admin)
+    draft_id = queued_token()
+    main.drain_queue(StubIdentifier(error="worker down"))
+    photos.discard_draft(settings_module.settings.photo_dir, draft_id)  # deleted by hand
+    listing = admin.get("/drafts", auth=AUTH).text
+    assert "Identify again" not in listing
+    assert f'action="/drafts/{draft_id}/discard"' in listing
+    woken.clear()
+    r = admin.post(f"/drafts/{draft_id}/identify", auth=AUTH, follow_redirects=False)
+    assert r.status_code == 410
+    assert rows("SELECT status FROM drafts")[0]["status"] == "failed"
+    assert woken == []

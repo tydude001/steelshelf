@@ -480,6 +480,14 @@ def finish_draft(conn: sqlite3.Connection, token: str, upc: str | None, found: s
         ("failed" if error else "ready", upc, found, error, token))
 
 
+def requeue_failed(conn: sqlite3.Connection, token: str) -> bool:
+    """Identify again: put a failed draft back in the queue, its error cleared; False
+    if it is not a failed draft."""
+    return conn.execute(
+        "UPDATE drafts SET status = 'queued', error = NULL, identified_at = NULL"
+        " WHERE token = ? AND status = 'failed'", (token,)).rowcount == 1
+
+
 def requeue_identifying(conn: sqlite3.Connection) -> int:
     """Put back drafts a stopped app left mid-identify; how many."""
     return conn.execute(
