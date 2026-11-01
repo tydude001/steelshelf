@@ -108,7 +108,9 @@ table.
 **At the desk.** `/drafts` (admin, like `/add`) lists the queue oldest first:
 the front thumbnail (made on first request, kept in the draft's directory as
 `thumb.jpg`), the title and edition identify found, how many doubts, who
-answered, and the status. Each opens the existing `/add` review form filled
+answered, and the status. While anything is queued or being identified the
+page reloads itself every 10 s (a meta refresh: no script), and stops once
+nothing is pending. Each opens the existing `/add` review form filled
 from `found` (`GET /add?draft=<token>`); one not yet identified opens empty
 with its photos held, to type by hand. **Save** is the existing `POST /items`
 with that draft, which also deletes the row in the same transaction and, for
@@ -150,13 +152,12 @@ and the photos.
   worker over its limit, `Fallback` answers from the API at cents per case,
   and `/drafts` names who answered each.
 
-**Built in the first slice:** the `drafts` table, **Queue and next** (`POST
-/drafts`, 303 to `/add?queued=1`), the queue thread (`main.identify_queue`,
-one long-lived daemon woken by an event; `drain_queue` is the synchronous
-loop the tests drive) with the startup reset, `/drafts` with **Save** through
-the existing form and **Discard**, and `prune_drafts` sparing queued
-directories; then the repeat mark and **Identify again**. Not built: the
-meta refresh — `/drafts` is reloaded by hand. A
+**In the code:** the `drafts` table, **Queue and next** (`POST /drafts`, 303
+to `/add?queued=1`), the queue thread (`main.identify_queue`, one long-lived
+daemon woken by an event; `drain_queue` is the synchronous loop the tests
+drive) with the startup reset, `/drafts` with its repeat mark and
+self-refresh, **Save** through the existing form, **Identify again** and
+**Discard**, and `prune_drafts` sparing queued directories. A
 save-without-review shortcut for drafts with no doubts is left out until the
 confirm rate on a real shelf says it is safe.
 

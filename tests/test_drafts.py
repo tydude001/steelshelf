@@ -529,3 +529,37 @@ def test_identify_again_is_not_offered_when_the_photos_are_gone(admin, woken):
     assert r.status_code == 410
     assert rows("SELECT status FROM drafts")[0]["status"] == "failed"
     assert woken == []
+
+
+# --- the page refreshes itself ------------------------------------------------------
+
+REFRESH = 'http-equiv="refresh"'
+
+
+def test_drafts_refreshes_while_a_case_is_queued_or_identifying(admin, woken):
+    queue(admin)
+    page = admin.get("/drafts", auth=AUTH).text
+    assert f'{REFRESH} content="{main.DRAFTS_REFRESH}; url=/drafts"' in page
+    with db.connect(settings_module.settings.database_path) as conn:
+        db.claim_draft(conn)  # being identified now
+    assert REFRESH in admin.get("/drafts", auth=AUTH).text
+
+
+def test_drafts_stops_refreshing_once_nothing_is_pending(admin, woken):
+    queue(admin)
+    main.drain_queue(StubIdentifier(FOUND))
+    queue(admin)
+    main.drain_queue(StubIdentifier(error="worker down"))
+    page = admin.get("/drafts", auth=AUTH).text
+    assert "1 ready" in page and "1 failed" in page
+    assert REFRESH not in page
+    assert REFRESH not in admin.get("/drafts?saved=1", auth=AUTH).text
+    for d in rows("SELECT token FROM drafts"):
+        admin.post(f"/drafts/{d['token']}/discard", auth=AUTH)
+    assert REFRESH not in admin.get("/drafts", auth=AUTH).text
+
+
+def test_only_drafts_refreshes(admin, woken):
+    queue(admin)
+    for path in ("/", "/add", "/stats"):
+        assert REFRESH not in admin.get(path, auth=AUTH).text

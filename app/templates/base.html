@@ -13,6 +13,7 @@
   <link rel="preload" href="/static/fonts/fraunces-latin.woff2" as="font" type="font/woff2"
         crossorigin>
   <link rel="stylesheet" href="/static/steelshelf.css?v={{ css_version }}">
+  {% block head %}{% endblock %}
 </head>
 <body{% block body_class %}{% endblock %}>
   {% block header %}

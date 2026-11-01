@@ -19,7 +19,8 @@
   POST /drafts             Queue and next: hold the photos as a queued
                            draft for the background identify, 303 to an
                            empty /add                                 (HTTP Basic)
-  GET  /drafts             the queue, oldest first, to confirm each   (HTTP Basic)
+  GET  /drafts             the queue, oldest first, to confirm each;
+                           reloads itself while a case waits          (HTTP Basic)
   GET  /drafts/{token}/thumb  a queued draft's front, as a thumbnail  (HTTP Basic)
   POST /drafts/{token}/identify  Identify again: a failed draft whose
                            photos are held goes back in the queue      (HTTP Basic)
@@ -953,6 +954,11 @@ async def queue_draft(
     return RedirectResponse("/add?queued=1", status_code=303)
 
 
+# /drafts reloads itself this often (seconds) while a case is queued or being identified;
+# one identify takes 15–20 s on the worker.
+DRAFTS_REFRESH = 10
+
+
 @app.get("/drafts", response_class=HTMLResponse)
 def drafts_page(request: Request, _: str = Depends(require_admin), saved: int | None = None):
     """The queue, oldest first, from the table alone; no call is made here. `saved`
@@ -977,7 +983,7 @@ def drafts_page(request: Request, _: str = Depends(require_admin), saved: int | 
         _mark_repeats(drafts, db.item_identities(conn))
     return TEMPLATES.TemplateResponse(request, "drafts.html",
                                       {"drafts": drafts, "queue": counts,
-                                       "saved": just_saved})
+                                       "saved": just_saved, "refresh": DRAFTS_REFRESH})
 
 
 def _case_key(title, edition) -> tuple[str, ...] | None:

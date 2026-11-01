@@ -1,5 +1,9 @@
 {% extends "base.html" %}
 {% block title %}Drafts — steelshelf{% endblock %}
+{% block head %}
+{#- While a case waits, the page reloads itself; with nothing pending, it stops. #}
+{% if queue and queue.queued %}<meta http-equiv="refresh" content="{{ refresh }}; url=/drafts">{% endif %}
+{% endblock %}
 {% block content %}
 <h1>Drafts</h1>
 {% if saved %}
@@ -9,7 +13,8 @@
 <p class="muted">Cases queued from <a href="/add">Add</a>, oldest first.
 {%- if queue %} {{ queue.queued }} waiting · {{ queue.ready }} ready
 {%- if queue.failed %} · {{ queue.failed }} failed{% endif %}.{% endif %}
-Open each to check what was found and save it; reload to see the queue move.</p>
+Open each to check what was found and save it.
+{%- if queue and queue.queued %} This page updates itself while cases wait.{% endif %}</p>
 <ul class="drafts">
   {% for d in drafts %}
   <li class="card draft {{ d.status }}">
