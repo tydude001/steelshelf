@@ -86,15 +86,34 @@ def export(items) -> str:
 
 
 # --- import -----------------------------------------------------------------------
-# This slice reads a file laid out like the export: its columns map to fields by
-# name. `id` and the worth columns are read by nothing — a spreadsheet's price may be
-# what was paid, an ask, a sale or a guess, and a valuation has to say which, so a
-# price in the file is never saved as one.
+# A file's columns map to fields: each guessed from its header, then corrected by
+# hand on the preview. `id` and the worth columns are guessed to nothing — a
+# spreadsheet's price may be what was paid, an ask, a sale or a guess, and a valuation
+# has to say which, so a price in the file is never saved as one.
 
 IMPORT_FIELDS = tuple(c for c in ITEM_COLUMNS if c != "id")
 MAX_ROWS = 5000
 MAX_BYTES = 10 * 1024 * 1024
 DELIMITERS = ",;\t"
+
+# Header names other collection apps and hand-made sheets use, normalised as
+# `_header_name` leaves them. A field's own name maps to it as well, so an export maps
+# itself. A bare "Price" is left unguessed: it may be paid, asked or hoped for.
+ALIASES = {
+    **{f: f for f in IMPORT_FIELDS},
+    "movie": "title", "film": "title", "movie_title": "title", "film_title": "title",
+    "release_year": "year",
+    "media": "format", "media_type": "format", "disc_format": "format",
+    "version": "edition",
+    "store": "retailer", "exclusive": "retailer", "shop": "retailer",
+    "barcode": "upc", "ean": "upc", "upc_ean": "upc", "ean_upc": "upc", "gtin": "upc",
+    "note": "notes", "comment": "notes", "comments": "notes",
+    "genres": "genre", "directors": "director", "directed_by": "director",
+    "cost": "paid_price", "price_paid": "paid_price", "purchase_price": "paid_price",
+    "paid": "paid_price",
+    "purchase_date": "paid_on", "date_purchased": "paid_on", "purchased_on": "paid_on",
+    "bought_on": "paid_on", "date_bought": "paid_on",
+}
 
 
 class SheetError(ValueError):
@@ -103,9 +122,29 @@ class SheetError(ValueError):
 
 @dataclass
 class Sheet:
-    fields: list[str]  # the IMPORT_FIELDS the header names, in file order
-    ignored: list[str]  # header cells that map to nothing
-    rows: list[dict[str, str]] = field(default_factory=list)  # {field: cell}, raw
+    header: list[str]  # the file's header cells, stripped
+    cells: list[list[str]] = field(default_factory=list)  # each data row, raw
+    mapping: dict[int, str] = field(default_factory=dict)  # column index -> field
+
+    @property
+    def fields(self) -> list[str]:
+        """The fields some column maps to, in file order."""
+        return [self.mapping[i] for i in sorted(self.mapping)]
+
+    @property
+    def ignored(self) -> list[str]:
+        """Header cells that map to nothing."""
+        return [c for i, c in enumerate(self.header) if i not in self.mapping and c]
+
+    @property
+    def has_title(self) -> bool:
+        return "title" in self.mapping.values()
+
+    @property
+    def rows(self) -> list[dict[str, str]]:
+        """Each row as {field: cell}, by the mapping."""
+        return [{f: cells[i] if i < len(cells) else "" for i, f in self.mapping.items()}
+                for cells in self.cells]
 
 
 def decode(data: bytes) -> str:
@@ -119,12 +158,41 @@ def decode(data: bytes) -> str:
 
 
 def _header_name(cell: str) -> str:
-    return cell.strip().lower().replace(" ", "_")
+    """Lower case, every run of anything not a letter or digit read as one `_`:
+    "Price paid", "price-paid" and "UPC/EAN" become price_paid and upc_ean."""
+    return re.sub(r"[^0-9a-z]+", "_", cell.strip().lower()).strip("_")
 
 
-def read(data: bytes) -> Sheet:
-    """The file's rows keyed by field name; SheetError when it cannot be read as a
-    steelshelf-layout CSV (empty, too big, no title column, too many rows)."""
+def guess(header: list[str]) -> dict[int, str]:
+    """Each column's field from its header name; the first column to claim a field
+    keeps it, so no field is read from two columns."""
+    out: dict[int, str] = {}
+    for i, cell in enumerate(header):
+        name = ALIASES.get(_header_name(cell))
+        if name and name not in out.values():
+            out[i] = name
+    return out
+
+
+def check_mapping(header: list[str], mapping: dict[int, str]) -> dict[int, str]:
+    """A mapping typed on the preview, checked: columns that exist, fields that are
+    import fields, each field from one column. SheetError names what is wrong."""
+    out: dict[int, str] = {}
+    for i, name in sorted(mapping.items()):
+        if not name:
+            continue
+        if not 0 <= i < len(header) or name not in IMPORT_FIELDS:
+            raise SheetError("that column mapping does not fit this file")
+        if name in out.values():
+            raise SheetError(f"two columns are both mapped to {name}: pick one")
+        out[i] = name
+    return out
+
+
+def read(data: bytes, mapping: dict[int, str] | None = None) -> Sheet:
+    """The file's header and rows, mapped by `mapping` or else by `guess`; SheetError
+    when it cannot be read at all (empty, too big, too many rows). A file with no
+    title column is read: its preview asks which column is the title."""
     if len(data) > MAX_BYTES:
         raise SheetError(f"the file is over {MAX_BYTES // (1024 * 1024)} MB")
     text = decode(data)
@@ -136,25 +204,15 @@ def read(data: bytes) -> Sheet:
     except csv.Error:
         delimiter = ","
     reader = csv.reader(io.StringIO(text, newline=""), delimiter=delimiter)
-    header = next(reader, [])
-    names = [_header_name(c) for c in header]
-    if "title" not in names:
-        raise SheetError("no title column: this import reads a steelshelf export, or a "
-                           "sheet whose columns are named the same way")
-    keep = {i: n for i, n in enumerate(names) if n in IMPORT_FIELDS}
-    sheet = Sheet(fields=list(dict.fromkeys(keep.values())),
-                  ignored=[c.strip() for i, c in enumerate(header)
-                           if i not in keep and c.strip()])
+    header = [c.strip() for c in next(reader, [])]
+    sheet = Sheet(header=header,
+                  mapping=guess(header) if mapping is None else check_mapping(header, mapping))
     for cells in reader:
         if not any(c.strip() for c in cells):
             continue  # a blank line, as spreadsheets leave at the end
-        if len(sheet.rows) == MAX_ROWS:
+        if len(sheet.cells) == MAX_ROWS:
             raise SheetError(f"more than {MAX_ROWS:,} rows; split the file")
-        row: dict[str, str] = {}
-        for i, name in keep.items():
-            if i < len(cells) and name not in row:
-                row[name] = cells[i]
-        sheet.rows.append(row)
+        sheet.cells.append(cells)
     return sheet
 
 

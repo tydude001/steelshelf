@@ -51,9 +51,10 @@ drawn cases, since real steelbook art belongs to the studios and artists.
 - 📊 **Stats.** Value by retailer or label, how sure each price is, and counts
   by format, region and condition.
 - 📤 **Export and import.** The whole shelf as a CSV, every field and what each
-  case is worth, ask or sold, for any spreadsheet; and a sheet laid out the
-  same way read back in, every row checked on a preview first, cases already
-  on the shelf left out.
+  case is worth, ask or sold, for any spreadsheet; and a spreadsheet read
+  back in — this app's export or another app's, its columns matched to
+  fields — every row checked on a preview first, cases already on the shelf
+  left out.
 
 ## Quick start
 

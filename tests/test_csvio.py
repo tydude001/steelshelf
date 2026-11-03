@@ -128,3 +128,23 @@ def test_stats_links_the_export_once_there_is_a_shelf(admin):
     assert 'href="/export.csv"' not in admin.get("/stats").text
     post_item(admin, data={"title": "Alien"})
     assert 'href="/export.csv"' in admin.get("/stats").text
+
+
+# --- import: guessing columns --------------------------------------------------------
+
+
+def test_header_names_are_normalised_before_guessing():
+    from app.csvio import guess
+    assert guess(["  Price-Paid ", "UPC / EAN", "Movie Title", "Name"]) == {
+        0: "paid_price", 1: "upc", 2: "title"}
+
+
+def test_the_first_column_to_claim_a_field_keeps_it():
+    from app.csvio import guess
+    assert guess(["Movie", "Title", "EAN", "Barcode"]) == {0: "title", 2: "upc"}
+
+
+def test_id_and_worth_columns_guess_to_nothing():
+    from app.csvio import COLUMNS, guess
+    mapped = set(guess(list(COLUMNS)).values())
+    assert "id" not in mapped and not mapped & {"worth", "worth_low", "added"}

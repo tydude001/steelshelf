@@ -92,14 +92,22 @@ record of what someone owns and paid.
 1. **Upload** (`POST /import`, admin, on `/stats` beside the export, and
    there on an empty shelf too): a CSV of up to 5,000 rows and 10 MB, its
    delimiter sniffed (comma, semicolon or tab), read as UTF-8 with or without
-   the mark, else Windows-1252. A file with no `title` column is refused at
-   upload. The file is held under `PHOTO_DIR/_imports/<token>.csv` and pruned
-   after a day, like a draft; no table.
-2. **Map** columns to fields, each guessed from its header — `Title`,
-   `Movie` and `Film` to `title`, `Barcode`, `EAN` and `UPC` to `upc`,
-   `Cost`, `Price paid` and `Purchase price` to `paid_price`, `Store` and
-   `Exclusive` to `retailer`, and so on — and a steelshelf export maps itself
-   by name. The worth columns and `id` map to nothing.
+   the mark, else Windows-1252. The file is held under
+   `PHOTO_DIR/_imports/<token>.csv` and pruned after a day, like a draft; no
+   table.
+2. **Map** columns to fields (`POST /import/<token>/map`), each guessed from
+   its header (`csvio.ALIASES`, the header lower-cased with every run of
+   punctuation or space read as `_`) — `Title`, `Movie` and `Film` to
+   `title`, `Barcode`, `EAN` and `UPC/EAN` to `upc`, `Cost`, `Price paid`
+   and `Purchase price` to `paid_price`, `Store` and `Exclusive` to
+   `retailer`, and so on — and a steelshelf export maps itself by name. The
+   worth columns and `id` map to nothing, and so does a bare `Price`, which
+   may be paid, asked or hoped for. The first column to claim a field keeps
+   it. The mapping is a form on the preview, folded away when a column was
+   guessed as the title, open when none was: a file with no title column is
+   held, not refused, and nothing imports until one is picked. A correction
+   is held beside the file as `<token>.json`; two columns on one field, or a
+   field that is not an import field, is refused.
 3. **Preview** (`GET /import/<token>`) the first 50 rows to add and every
    row's problems, checked by the add form's own rules (`_item_values`,
    `_item_errors`) — no title, a UPC that is not digits, a paid price that is
@@ -138,10 +146,6 @@ may be what they paid, an ask, a sale or a guess, and a valuation has to say
 which; mapped to `paid_price` it is what was paid, and otherwise it stays in
 the sheet.
 
-**Built in the first slice:** upload, preview and import for a file that
-maps itself by name — a steelshelf export or a sheet laid out the same way
-(header names matched ignoring case, a space read as `_`) — with the row
-checks, repeat detection, the TMDB lookup after it, and the re-price left to
-**Run the rest now**, which the finished import points to. Not built: the
-column-mapping step (2 above) for other apps' sheets, then adding photos to
-a saved case.
+**Built:** all four steps above, with the TMDB lookup after it and the
+re-price left to **Run the rest now**, which the finished import points to.
+Not built: adding photos to a saved case.

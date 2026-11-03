@@ -539,3 +539,9 @@ h2.section { font-family: inherit; font-size: 13px; font-weight: 700; letter-spa
 .draft.failed .what .muted { color: var(--bad); }
 .draft .repeat { color: var(--warn-ink); }
 .draft .actions { display: grid; gap: 6px; flex: none; }
+
+/* import: the column mapping on the preview */
+.import-map { margin: 12px 0 20px; }
+.import-map summary { cursor: pointer; color: var(--link); font-weight: 600; }
+.import-map select { padding: 6px; }
+.import-map td { vertical-align: middle; overflow-wrap: anywhere; }

@@ -32,10 +32,13 @@
                            re-render the edit form filled in          (HTTP Basic)
   GET  /export.csv         the whole shelf as a spreadsheet, one row per
                            case with what it is worth                  (HTTP Basic)
-  POST /import             upload a CSV laid out like the export; held for
-                           a day, 303 to its preview                  (HTTP Basic)
-  GET  /import/{token}     the preview: every row checked by the add form's
-                           rules, repeats of a case on the shelf flagged (HTTP Basic)
+  POST /import             upload a CSV; held for a day, 303 to its
+                           preview                                    (HTTP Basic)
+  GET  /import/{token}     the preview: columns mapped to fields, every row
+                           checked by the add form's rules, repeats of a
+                           case on the shelf flagged                  (HTTP Basic)
+  POST /import/{token}/map correct which column is which field; held with
+                           the file, 303 to the preview               (HTTP Basic)
   POST /import/{token}     save the good rows in one transaction      (HTTP Basic)
   GET  /review             items missing a format or region, and spine
                            photos the shelf could not use             (open)
@@ -623,8 +626,8 @@ def _prune_imports() -> None:
     root = Path(settings.photo_dir) / IMPORT_DIR
     if root.is_dir():
         cutoff = datetime.now().timestamp() - IMPORT_MAX_AGE
-        for f in root.glob("*.csv"):
-            if f.stat().st_mtime < cutoff:
+        for f in root.iterdir():  # the held file and its mapping
+            if f.is_file() and f.stat().st_mtime < cutoff:
                 f.unlink(missing_ok=True)
 
 
@@ -658,7 +661,15 @@ def _import_rows(sheet: csvio.Sheet, items) -> list[dict]:
 def _import_page(request, token=None, sheet=None, rows=(), error=None, done=None,
                  status_code=200):
     rows = list(rows)
+    columns = []
+    if sheet is not None:  # each column with a sample cell, for the mapping form
+        for i, name in enumerate(sheet.header):
+            sample = next((c[i].strip() for c in sheet.cells
+                           if i < len(c) and c[i].strip()), "")
+            columns.append({"i": i, "name": name, "sample": sample,
+                            "field": sheet.mapping.get(i, "")})
     ctx = {"token": token, "sheet": sheet, "rows": rows, "error": error, "done": done,
+           "columns": columns, "import_fields": csvio.IMPORT_FIELDS,
            "good": [r for r in rows if not r["errors"] and not r["repeat"]],
            "repeats": [r for r in rows if not r["errors"] and r["repeat"]],
            "bad": [r for r in rows if r["errors"]],
@@ -667,10 +678,18 @@ def _import_page(request, token=None, sheet=None, rows=(), error=None, done=None
 
 
 def _held_import(token: str) -> csvio.Sheet:
+    """The held file, mapped as corrected on its preview, or else as guessed."""
     path = _import_path(token)
     if path is None or not path.is_file():
         raise HTTPException(404, "no such upload: it is over a day old, or already imported")
-    return csvio.read(path.read_bytes())
+    mapping = None
+    held = path.with_suffix(".json")
+    if held.is_file():
+        mapping = {int(i): f for i, f in json.loads(held.read_text()).items()}
+    return csvio.read(path.read_bytes(), mapping)
+
+
+NO_TITLE = "Pick the column that holds each case's title: nothing can be imported without one."
 
 
 @app.post("/import")
@@ -695,9 +714,29 @@ async def import_upload(request: Request, _: str = Depends(require_admin),
 @app.get("/import/{token}", response_class=HTMLResponse)
 def import_preview(request: Request, token: str, _: str = Depends(require_admin)):
     sheet = _held_import(token)
+    if not sheet.has_title:
+        return _import_page(request, token, sheet, error=NO_TITLE)
     with db.connect(settings.database_path) as conn:
         items = db.list_items(conn)
     return _import_page(request, token, sheet, _import_rows(sheet, items))
+
+
+@app.post("/import/{token}/map")
+async def import_map(request: Request, token: str, _: str = Depends(require_admin)):
+    """Hold the column mapping chosen on the preview beside the file; 303 back to it.
+    Form fields are `col<i>` = an import field, or blank for a column read by nothing."""
+    sheet = _held_import(token)
+    form = await request.form()
+    chosen = {}
+    for key, value in form.items():
+        if key.startswith("col") and key[3:].isdigit():
+            chosen[int(key[3:])] = str(value)
+    try:
+        mapping = csvio.check_mapping(sheet.header, chosen)
+    except csvio.SheetError as exc:
+        return _import_page(request, token, sheet, error=str(exc), status_code=422)
+    _import_path(token).with_suffix(".json").write_text(json.dumps(mapping))
+    return RedirectResponse(f"/import/{token}", status_code=303)
 
 
 @app.post("/import/{token}", response_class=HTMLResponse)
@@ -707,6 +746,8 @@ async def import_save(request: Request, token: str, _: str = Depends(require_adm
     The rows are checked again here from the held file, not taken from the form. No
     valuation is written: a spreadsheet's price is not one (docs/shelf.md)."""
     sheet = _held_import(token)
+    if not sheet.has_title:
+        return _import_page(request, token, sheet, error=NO_TITLE, status_code=422)
     form = await request.form()
     include = {int(v) for v in form.getlist("include") if str(v).isdigit()}
     conn = db.connect(settings.database_path)
@@ -725,6 +766,7 @@ async def import_save(request: Request, token: str, _: str = Depends(require_adm
     finally:
         conn.close()
     _import_path(token).unlink(missing_ok=True)
+    _import_path(token).with_suffix(".json").unlink(missing_ok=True)
     log.info("import: %d cases saved, %d left out", len(chosen), len(rows) - len(chosen))
     look_up_films()
     done = {"saved": len(chosen), "repeats_saved": sum(1 for r in chosen if r["repeat"])}

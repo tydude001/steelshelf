@@ -69,10 +69,15 @@ def test_preview_saves_nothing(admin):
     assert rows("SELECT * FROM items") == []
 
 
-def test_a_file_without_a_title_column_is_refused(admin):
-    r = upload(admin, "Movie,Barcode\nAlien,012345678905\n")
+def test_a_file_without_a_title_column_asks_for_one(admin):
+    # "Name" guesses to nothing: the file is held, but nothing imports until a column
+    # is picked as the title (retargeted from refusal at upload when mapping arrived).
+    token, page = preview(admin, "Name,Barcode\nAlien,012345678905\n")
+    assert "Pick the column that holds each case" in page
+    assert f'action="/import/{token}"' not in page  # no Import button
+    r = admin.post(f"/import/{token}", auth=AUTH)
     assert r.status_code == 422
-    assert "no title column" in r.text
+    assert rows("SELECT * FROM items") == []
 
 
 def test_an_empty_upload_is_refused(admin):
@@ -142,6 +147,76 @@ def test_typed_genre_or_director_is_set_by_hand(admin):
     do_import(admin, sheet("Alien,Ridley Scott", "Heat,", header="title,director"))
     by_title = {r["title"]: r["tmdb_id"] for r in rows("SELECT title, tmdb_id FROM items")}
     assert by_title == {"Alien": db.HAND_SET, "Heat": None}
+
+
+# --- column mapping --------------------------------------------------------------------
+
+
+def held(token) -> Path:
+    return Path(settings_module.settings.photo_dir) / main.IMPORT_DIR / f"{token}.csv"
+
+
+def test_another_apps_headers_are_guessed(admin):
+    text = ("Movie,UPC/EAN,Store,Price paid,Purchase Date,Media Type,Comments,Price\n"
+            "Alien,012345678905,Zavvi,24.99,2024-02-24,4K UHD,dent,45\n")
+    _, page = preview(admin, text)
+    assert "1 to add" in page and "Columns read by nothing: Price" in page
+    do_import(admin, text)
+    (item,) = rows("SELECT * FROM items")
+    assert (item["title"], item["upc"], item["retailer"], item["paid_price"],
+            item["paid_on"], item["format"], item["notes"]) == (
+        "Alien", "012345678905", "Zavvi", 24.99, "2024-02-24", "4K UHD", "dent")
+    assert rows("SELECT * FROM valuations") == []  # the bare Price is read by nothing
+
+
+def test_a_column_is_mapped_by_hand_then_imported(admin):
+    token, page = preview(admin, "Name,Barcode,Value\nAlien,012345678905,30\n")
+    assert 'name="col0"' in page and "Alien" in page  # the first value, shown to map by
+    r = admin.post(f"/import/{token}/map", data={"col0": "title", "col1": "upc", "col2": ""},
+                   auth=AUTH, follow_redirects=False)
+    assert r.status_code == 303 and r.headers["location"] == f"/import/{token}"
+    page = admin.get(f"/import/{token}", auth=AUTH).text
+    assert "1 to add" in page and "Columns read by nothing: Value" in page
+    assert admin.post(f"/import/{token}", auth=AUTH).status_code == 200
+    (item,) = rows("SELECT * FROM items")
+    assert (item["title"], item["upc"], item["paid_price"]) == ("Alien", "012345678905", None)
+    assert not held(token).with_suffix(".json").exists()  # the mapping goes with the file
+
+
+def test_a_guess_can_be_unmapped(admin):
+    token, _ = preview(admin, "Movie,Cost\nAlien,9.99\n")
+    admin.post(f"/import/{token}/map", data={"col0": "title", "col1": ""}, auth=AUTH)
+    admin.post(f"/import/{token}", auth=AUTH)
+    assert rows("SELECT paid_price FROM items")[0]["paid_price"] is None
+
+
+def test_two_columns_on_one_field_are_refused(admin):
+    token, _ = preview(admin, "Movie,Film\nAlien,Alien 4K\n")
+    r = admin.post(f"/import/{token}/map", data={"col0": "title", "col1": "title"}, auth=AUTH)
+    assert r.status_code == 422 and "both mapped to title" in r.text
+    assert not held(token).with_suffix(".json").exists()
+
+
+def test_a_mapping_that_does_not_fit_the_file_is_refused(admin):
+    token, _ = preview(admin, "Movie\nAlien\n")
+    for data in ({"col5": "title"}, {"col0": "worth"}, {"col0": "id"}):
+        r = admin.post(f"/import/{token}/map", data=data, auth=AUTH)
+        assert r.status_code == 422 and "does not fit" in r.text
+
+
+def test_the_mapping_needs_the_admin_login(admin):
+    token, _ = preview(admin, "Name\nAlien\n")
+    r = admin.post(f"/import/{token}/map", data={"col0": "title"}, auth=None)
+    assert r.status_code == 401
+    assert not held(token).with_suffix(".json").exists()
+    assert admin.post(f"/import/{'0' * 32}/map", auth=AUTH).status_code == 404
+
+
+def test_an_export_maps_itself_and_the_form_folds_away(admin):
+    post_item(admin, data={"title": "Alien"})
+    _, page = preview(admin, admin.get("/export.csv", auth=AUTH).text)
+    assert '<details class="import-map">' in page  # not open: nothing to fix
+    assert "15 read" in page
 
 
 # --- repeats ---------------------------------------------------------------------------

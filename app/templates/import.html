@@ -14,7 +14,7 @@ repeats{% endif %}.</p>
 them blank. Nothing was priced: a price in a spreadsheet is never saved as what a case is
 worth. <strong>Run the rest now</strong> on <a href="/stats#reprice">Stats</a> prices the
 new cases first.</p>
-{% elif sheet %}
+{% elif sheet and sheet.has_title %}
 <p class="muted">{{ rows | length }} row{{ "s" if rows | length != 1 }} read.
 {{ good | length }} to add, {{ repeats | length }} already on the shelf,
 {{ bad | length }} with problems. Nothing is saved until you press Import.
@@ -22,7 +22,34 @@ new cases first.</p>
 the file is never saved as what a case is worth.{% endif %}</p>
 {% endif %}
 
-{% if sheet %}
+{% if sheet and not done %}
+<details class="import-map"{% if not sheet.has_title or error %} open{% endif %}>
+<summary>Columns: {{ sheet.fields | length }} read, {{ sheet.ignored | length }} read by
+  nothing — change</summary>
+<form method="post" action="/import/{{ token }}/map">
+<p class="muted small">Each column was guessed from its header. A price is read only as
+what was paid, and only from the column you map to paid_price.</p>
+<table>
+  <thead><tr><th>Column</th><th>First value</th><th>Read as</th></tr></thead>
+  <tbody>
+  {% for c in columns %}
+  <tr><td><label for="col{{ c.i }}">{{ c.name or "(no header)" }}</label></td>
+    <td class="muted">{{ c.sample | truncate(40) }}</td>
+    <td><select id="col{{ c.i }}" name="col{{ c.i }}">
+      <option value=""{% if not c.field %} selected{% endif %}>— nothing —</option>
+      {% for f in import_fields %}
+      <option value="{{ f }}"{% if c.field == f %} selected{% endif %}>{{ f }}</option>
+      {% endfor %}
+    </select></td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+<button class="btn tiny" type="submit">Use these columns</button>
+</form>
+</details>
+{% endif %}
+
+{% if sheet and sheet.has_title %}
 <form method="post" action="/import/{{ token }}">
 {% if good and not done %}
 <h2>To add</h2>
@@ -76,7 +103,7 @@ one: a second copy is a case of its own.{% endif %}</p>
 
 {% if not sheet or done %}
 <form method="post" action="/import" enctype="multipart/form-data" class="import-upload">
-  <label for="file">A CSV laid out like steelshelf's export</label>
+  <label for="file">A CSV: a steelshelf export, or another app's spreadsheet</label>
   <input id="file" name="file" type="file" accept=".csv,text/csv" required>
   <button class="btn tiny" type="submit">Preview</button>
 </form>
