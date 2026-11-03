@@ -138,14 +138,20 @@ case has none.
 
 Two consequences. **An imported case has no photos**: the shelf draws it as
 a plain spine with its title, and its item page, `/stats` and `/review`
-render as usual (checked against a case saved with none), but nothing yet
-adds photos to a saved case — that affordance, which would also run the spine
-cut and **Identify again**, is the step after import. And **a price in the
+render as usual (checked against a case saved with none), and its item page
+opens **Add photos** (`POST /items/<id>/photos`, admin). That form offers
+only the kinds the case lacks, so it adds and never replaces: an original
+photo is the record of the case. Photos are saved as the add form saves
+them — thumbnails, the spine cut, the spine colour from a new front, the
+barcode read into a blank UPC (never over one) — and it lands on the edit
+page, which says what came in and offers **Identify again**; identify is not
+run on its own, being a model call. Without a front photo the edit page
+points back at the form instead. And **a price in the
 spreadsheet is never imported as a valuation**: a number in someone's sheet
 may be what they paid, an ask, a sale or a guess, and a valuation has to say
 which; mapped to `paid_price` it is what was paid, and otherwise it stays in
 the sheet.
 
 **Built:** all four steps above, with the TMDB lookup after it and the
-re-price left to **Run the rest now**, which the finished import points to.
-Not built: adding photos to a saved case.
+re-price left to **Run the rest now**, which the finished import points to,
+and adding photos to the cases it saves.

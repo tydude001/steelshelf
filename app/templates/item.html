@@ -59,6 +59,27 @@
   <span class="muted">(automatic)</span>{% endif %} · <a href="/items/{{ item.id }}/spine">Change</a></p>
 {% endif %}
 
+{% set have = photos | map(attribute="kind") | list %}
+{% set missing = ["front", "spine", "back", "other"] | reject("in", have) | list %}
+{% if missing %}
+<details class="add-photos" id="add-photos"{% if not photos or photo_error %} open{% endif %}>
+<summary>{{ "Add photos" if not photos else "Add a " ~ missing | join(", ") ~ " photo" }}</summary>
+{% if photo_error %}<p class="errors">{{ photo_error }}</p>{% endif %}
+{% if not photos %}<p class="muted small">This case has no photos yet (an imported case starts
+without any). With a front photo the shelf can draw its spine, and Identify again can read
+the case.</p>{% endif %}
+<form method="post" action="/items/{{ item.id }}/photos" enctype="multipart/form-data">
+  {% for kind in missing %}
+  <label for="add-{{ kind }}">{{ {"front": "Front", "spine": "Spine",
+    "back": "Back — with the barcode in frame",
+    "other": "Other — a limited-edition number, a sticker"}[kind] }}</label>
+  <input id="add-{{ kind }}" name="{{ kind }}" type="file" accept="image/*" capture="environment">
+  {% endfor %}
+  <button class="btn tiny" type="submit">Add</button>
+</form>
+</details>
+{% endif %}
+
 <section class="card value">
   {% if latest %}
   <div class="worth">

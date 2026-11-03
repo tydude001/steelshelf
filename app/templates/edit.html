@@ -22,6 +22,15 @@
   {% if via %}<p class="muted">Identified by {{ via }}.</p>{% endif %}
 </div>
 {% else %}
+{% if added %}
+<p class="doubts" role="status">Added: {{ added | join(", ") }} photo{{ "s" if added | length > 1 }}
+{%- if upc_read %}, and the UPC {{ upc_read }} read off them{% endif %}.
+{% if has_front %}Identify again to fill in the fields from them.{% endif %}</p>
+{% endif %}
+{% if has_front is defined and not has_front %}
+<p class="muted">Identify again reads the front photo, and this case has none: <a
+  href="/items/{{ item.id }}#add-photos">add one</a>.</p>
+{% else %}
 <form id="reidentify" method="post" action="/items/{{ item.id }}/identify">
   <button class="btn quiet wide" type="submit">Identify again from photos</button>
   <p id="identify-status" class="muted" role="status">Sends the saved photos to {{ ai_name() }}{% if ai_searches() %},
@@ -44,6 +53,7 @@
   });
   addEventListener("pageshow", (e) => { if (e.persisted) location.reload(); });
 </script>
+{% endif %}
 {% endif %}
 <form method="post" action="/items/{{ item.id }}">
 {% include "_details.html" %}

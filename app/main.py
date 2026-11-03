@@ -30,6 +30,9 @@
   POST /items/{id}         save the edited fields, 303 to the item    (HTTP Basic)
   POST /items/{id}/identify ask Claude again from the stored photos,
                            re-render the edit form filled in          (HTTP Basic)
+  POST /items/{id}/photos  add photos of the kinds a saved case lacks (an
+                           imported one has none); 303 to its edit page,
+                           which offers Identify again                (HTTP Basic)
   GET  /export.csv         the whole shelf as a spreadsheet, one row per
                            case with what it is worth                  (HTTP Basic)
   POST /import             upload a CSV; held for a day, 303 to its
@@ -1229,7 +1232,8 @@ async def create_item(
 
 
 @app.get("/items/{item_id}", response_class=HTMLResponse)
-def item_page(request: Request, item_id: int, error: str | None = None):
+def item_page(request: Request, item_id: int, error: str | None = None,
+              photo_error: str | None = None):
     with db.connect(settings.database_path) as conn:
         item = db.get_item(conn, item_id)
         if item is None:
@@ -1250,6 +1254,7 @@ def item_page(request: Request, item_id: int, error: str | None = None):
             "valuations": valuations,
             "listings": listings,
             "error": error,
+            "photo_error": photo_error,
             "asks_via_serpapi": asks_via_serpapi(),
             "item_opened": is_opened(item),
             "item_sealed": bool((item["condition"] or "").strip()) and not is_opened(item),
@@ -1298,12 +1303,18 @@ def _gain(item, latest) -> float | None:
 
 
 @app.get("/items/{item_id}/edit", response_class=HTMLResponse)
-def edit_form(request: Request, item_id: int, _: str = Depends(require_admin)):
+def edit_form(request: Request, item_id: int, _: str = Depends(require_admin),
+              added: str | None = None, upc: str | None = None):
     with db.connect(settings.database_path) as conn:
         item = db.get_item(conn, item_id)
+        kinds = {r["kind"] for r in db.item_photos(conn, item_id)} if item else set()
     if item is None:
         raise HTTPException(404, "no such item")
-    ctx = {"item": item, "values": dict(item), "errors": [], "editing": True}
+    ctx = {"item": item, "values": dict(item), "errors": [], "editing": True,
+           "has_front": "front" in kinds,
+           # just back from adding photos: say what came in, before Identify again
+           "added": [k for k in (added or "").split(",") if k in photos.KINDS],
+           "upc_read": upc if upc and upc == item["upc"] else None}
     return TEMPLATES.TemplateResponse(request, "edit.html", ctx)
 
 
@@ -1349,6 +1360,67 @@ async def reidentify(
     ctx["identified"] = True
     log.info("item %d re-identified: %d fields differ", item_id, len(ctx["changes"]))
     return TEMPLATES.TemplateResponse(request, "edit.html", ctx)
+
+
+@app.post("/items/{item_id}/photos")
+async def add_photos(
+    item_id: int,
+    _: str = Depends(require_admin),
+    front: UploadFile | None = File(None),
+    spine: UploadFile | None = File(None),
+    back: UploadFile | None = File(None),
+    other: UploadFile | None = File(None),
+):
+    """Add photos to a saved case, of the kinds it does not have yet.
+
+    Only adds: an original photo is the record of the case and is never replaced from
+    here. Saved as the add form saves them — thumbnails, the spine cut, the spine
+    colour from a new front, and the barcode read into a blank UPC. Identify is not
+    run here (it is a model call); the edit page it lands on offers Identify again."""
+    with db.connect(settings.database_path) as conn:
+        item = db.get_item(conn, item_id)
+        if item is None:
+            raise HTTPException(404, "no such item")
+        have = {r["kind"] for r in db.item_photos(conn, item_id)}
+    uploads, errors = await _read_uploads((front, spine, back, other))
+    errors += [f"{kind}: this case already has one" for kind, _, _ in uploads if kind in have]
+    if not uploads and not errors:
+        errors.append("choose a photo to add")
+    if errors:
+        query = urlencode({"photo_error": "; ".join(errors)})
+        return RedirectResponse(f"/items/{item_id}?{query}#add-photos", status_code=303)
+
+    new_front = next((data for kind, _, data in uploads if kind == "front"), None)
+    color = await run_in_threadpool(photos.spine_color, new_front) if new_front else None
+    code = None
+    if not item["upc"]:
+        code = await run_in_threadpool(barcode.decode_any, [(k, d) for k, _, d in uploads])
+    conn = db.connect(settings.database_path)
+    saved: list[tuple[int, str, bytes]] = []
+    written: list[Path] = []
+    try:
+        for kind, ext, data in uploads:
+            rel = photos.save(settings.photo_dir, item_id, kind, ext, data)
+            written.append(Path(settings.photo_dir) / rel)
+            saved.append((db.insert_photo(conn, item_id, kind, rel), kind, data))
+        if new_front:
+            db.set_spine_color(conn, item_id, color)
+        if code:
+            conn.execute("UPDATE items SET upc = ? WHERE id = ? AND (upc IS NULL OR upc = '')",
+                         (code, item_id))
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        for path in written:  # only this request's files: the case's others stay
+            path.unlink(missing_ok=True)
+        raise
+    finally:
+        conn.close()
+    await run_in_threadpool(write_derived_for, item_id, saved)
+    log.info("item %d: %d photos added", item_id, len(saved))
+    query = urlencode({"added": ",".join(k for _, k, _ in saved)}
+                      | ({"upc": code} if code else {}))
+    return RedirectResponse(f"/items/{item_id}/edit?{query}", status_code=303)
 
 
 def _film_edit(conn, item, values: dict) -> bool:

@@ -545,3 +545,8 @@ h2.section { font-family: inherit; font-size: 13px; font-weight: 700; letter-spa
 .import-map summary { cursor: pointer; color: var(--link); font-weight: 600; }
 .import-map select { padding: 6px; }
 .import-map td { vertical-align: middle; overflow-wrap: anywhere; }
+
+/* item page: add photos to a saved case */
+.add-photos { margin: 14px 0; }
+.add-photos summary { cursor: pointer; color: var(--link); font-weight: 600; }
+.add-photos form { margin-top: 8px; }
