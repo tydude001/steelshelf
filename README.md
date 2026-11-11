@@ -10,6 +10,11 @@ at a case, let Claude name the edition and the retailer exclusive, and watch
 the shelf's value from eBay listings over time. FastAPI + Jinja + HTMX,
 SQLite, one Docker container, no CDN.
 
+<p>
+  <a href="docs/brag.mp4"><img alt="A 20-second tour, with sound: a case photographed and identified, its worth, and the shelf's value climbing. Tap to play." src="docs/img/brag.jpg" width="100%"></a>
+  <br><sub>▶ Tap for the 20-second tour, with sound. It is filmed on the demo shelf, like every screenshot here.</sub>
+</p>
+
 [Features](#features) · [Quick start](#quick-start) · [Try the demo](#try-the-demo) ·
 [Keys](#keys) · [Privacy](#privacy) · [Limitations](#limitations) ·
 [Documentation](#documentation) · [Development](#development)
