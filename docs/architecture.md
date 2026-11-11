@@ -94,7 +94,10 @@ decisions are in [identification.md](identification.md) and
   and lockup renderers.
 - `tests/` — pytest over a throwaway SQLite DB per test (`conftest.py`); no
   network, no real `data/`.
-- `docs/` — these pages, [deploy.md](deploy.md), and the README's
-  screenshots under `img/`, all taken from the demo shelf.
+- `docs/` — these pages, [deploy.md](deploy.md), the README's
+  screenshots under `img/`, and its tour video `brag.mp4` (poster
+  `img/brag.jpg`), all taken from the demo shelf. The video is made with
+  the `/brag-slim` skill, not by a script here, so a UI change it shows
+  dates it the way it dates a screenshot.
 - `Dockerfile`, `docker-compose.yml`, `docker-compose.demo.yml`,
   `requirements*.txt`, `.env.example`.
