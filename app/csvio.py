@@ -24,7 +24,7 @@ from app.pricing import SOLD_SOURCES, confidence
 # The case as the owner and the identify step left it, in `items` field names.
 ITEM_COLUMNS = ("id", "title", "year", "format", "edition", "retailer", "region", "upc",
                 "condition", "notes", "genre", "director", "edition_keywords", "search_query",
-                "paid_price", "paid_on")
+                "paid_price", "paid_on", "tags")
 # What it is worth: derived, never read back by an import.
 WORTH_COLUMNS = ("added", "worth", "worth_currency", "worth_basis", "worth_low", "worth_high",
                  "worth_count", "worth_confidence", "worth_source", "worth_matched",
@@ -105,6 +105,7 @@ ALIASES = {
     "release_year": "year",
     "media": "format", "media_type": "format", "disc_format": "format",
     "version": "edition",
+    "tag": "tags", "labels": "tags",
     "store": "retailer", "exclusive": "retailer", "shop": "retailer",
     "barcode": "upc", "ean": "upc", "upc_ean": "upc", "ean_upc": "upc", "gtin": "upc",
     "note": "notes", "comment": "notes", "comments": "notes",

@@ -277,6 +277,9 @@ the case.</p>{% endif %}
   {% for f in ["director", "genre", "upc", "notes"] %}
   {% if item[f] %}<dt>{{ f }}</dt><dd>{{ item[f] }}</dd>{% endif %}
   {% endfor %}
+  {% if item.tags %}
+  <dt>tags</dt><dd>{% for tag in item.tags | tags %}<a class="tag" href="/?q={{ tag | urlencode }}">{{ tag }}</a>{{ ", " if not loop.last }}{% endfor %}</dd>
+  {% endif %}
   {% if item.tmdb_id and item.tmdb_id > 0 %}
   {# The match the genre and director came from, so a wrong film is one tap to see. #}
   <dt>tmdb</dt><dd><a href="https://www.themoviedb.org/movie/{{ item.tmdb_id }}" rel="noreferrer">the film matched</a></dd>

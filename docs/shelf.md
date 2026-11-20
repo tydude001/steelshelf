@@ -10,7 +10,13 @@ The shelf sorts by newest, title, value, label, format, region, genre or
 director (`?sort=`, remembered in a cookie; `shelf.py`). The five grouping
 sorts give each group its own run of shelf with a brass plaque naming it, its
 count and its total. `?q=` searches title, edition, retailer, region, format,
-notes, genre and director (every word, any field, ignoring case).
+notes, genre, director and tags (every word, any field, ignoring case).
+
+**Tags** are the owner's own labels — `IMAX`, `gift`, anything — typed
+comma-separated on the add and edit forms and kept in `items.tags`, tidied on
+save (trimmed, blanks dropped, a repeat differing only in case dropped). A
+case's page links each tag to `/?q=<tag>`, so the shelf filters by one through
+search rather than a separate filter.
 
 ## Genre and director
 
@@ -67,7 +73,7 @@ the whole shelf, one row per case, oldest first, as
 `steelshelf-<date>.csv`. The case's own columns come first under their
 `items` field names — `id`, `title`, `year`, `format`, `edition`, `retailer`,
 `region`, `upc`, `condition`, `notes`, `genre`, `director`,
-`edition_keywords`, `search_query`, `paid_price`, `paid_on` — so the file
+`edition_keywords`, `search_query`, `paid_price`, `paid_on`, `tags` — so the file
 reads back into an import with no mapping. After them, what the case is
 worth: `worth`, `worth_currency`, `worth_low`, `worth_high`, `worth_count`,
 `worth_confidence` and `priced_on` from the valuation the shelf counts

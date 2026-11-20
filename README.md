@@ -52,7 +52,7 @@ drawn cases, since real steelbook art belongs to the studios and artists.
   re-price keeps it current.
 - 📚 **A shelf that looks like one.** Each case is drawn from its own spine
   photo, grouped by label, format, region, genre or director, with search
-  across every field.
+  across every field and your own tags (say, every film shot for IMAX).
 - 📊 **Stats.** Value by retailer or label, how sure each price is, and counts
   by format, region and condition.
 - 📤 **Export and import.** The whole shelf as a CSV, every field and what each

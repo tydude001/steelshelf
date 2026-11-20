@@ -13,7 +13,7 @@ from tests.test_items import StubSource, post_item, stub_pricing  # noqa: F401
 def row(**kw) -> sqlite3.Row:
     """A row shaped like db.list_items returns, with the columns shelve reads."""
     base = {"id": 0, "title": "", "retailer": None, "format": None, "region": None,
-            "edition": None, "notes": None, "genre": None, "director": None,
+            "edition": None, "notes": None, "genre": None, "director": None, "tags": None,
             "created_at": "2026-09-25 00:00:00", "latest_median": None,
             "latest_currency": "USD"}
     base.update(kw)

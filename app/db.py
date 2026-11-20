@@ -61,6 +61,7 @@ CREATE TABLE IF NOT EXISTS items (
     year        INTEGER,            -- the film's release year: identified, TMDB, or typed
     edition_keywords TEXT,          -- words a listing names this edition by, comma-separated
     search_query TEXT,              -- the eBay search that finds this edition; NULL = title
+    tags        TEXT,               -- the owner's own labels, comma-separated: 'IMAX, gift'
     created_at  TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_items_upc ON items(upc);
@@ -159,7 +160,7 @@ ADDED_COLUMNS = {"items": [("spine_color", "TEXT"), ("paid_price", "REAL"), ("pa
                            ("spine_reads", "INTEGER"), ("spine_choice", "TEXT"),
                            ("genre", "TEXT"), ("director", "TEXT"), ("tmdb_id", "INTEGER"),
                            ("year", "INTEGER"), ("edition_keywords", "TEXT"),
-                           ("search_query", "TEXT")],
+                           ("search_query", "TEXT"), ("tags", "TEXT")],
                  "valuations": [("via", "TEXT"), ("matched", "TEXT")],
                  "reprice_runs": [("sold_searches", "INTEGER NOT NULL DEFAULT 0")]}
 
@@ -184,7 +185,7 @@ def count_items(conn: sqlite3.Connection) -> int:
 
 ITEM_FIELDS = ("title", "format", "edition", "retailer", "region", "upc", "condition", "notes",
                "paid_price", "paid_on", "genre", "director", "year", "edition_keywords",
-               "search_query")
+               "search_query", "tags")
 
 
 def insert_item(conn: sqlite3.Connection, fields: dict[str, str | None]) -> int:

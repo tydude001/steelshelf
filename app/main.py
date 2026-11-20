@@ -146,6 +146,7 @@ TEMPLATES.env.filters["local_date"] = present.local_date
 TEMPLATES.env.filters["on_day"] = present.on_day
 TEMPLATES.env.filters["money"] = present.money
 TEMPLATES.env.filters["spine_face"] = shelf.spine_face
+TEMPLATES.env.filters["tags"] = shelf.tag_list
 # The genre and director fields say TMDB fills them only when it will.
 TEMPLATES.env.globals["tmdb_on"] = lambda: bool(settings.tmdb_api_key)
 TEMPLATES.env.globals["sold_sources"] = SOLD_SOURCES
@@ -912,7 +913,7 @@ async def _read_uploads(files) -> tuple[list[tuple[str, str, bytes]], list[str]]
 
 def _item_values(
     title, format, edition, retailer, region, upc, condition, notes, paid_price="", paid_on="",
-    genre="", director="", year="", edition_keywords="", search_query="",
+    genre="", director="", year="", edition_keywords="", search_query="", tags="",
 ) -> dict:
     return {
         "title": _clean(title), "format": _clean(format), "edition": _clean(edition),
@@ -921,6 +922,7 @@ def _item_values(
         "paid_price": _clean(paid_price), "paid_on": _clean(paid_on),
         "genre": _clean(genre), "director": _clean(director), "year": _clean(year),
         "edition_keywords": _clean(edition_keywords), "search_query": _clean(search_query),
+        "tags": ", ".join(shelf.tag_list(tags)) or None,
     }
 
 
@@ -1159,6 +1161,7 @@ async def create_item(
     year: str = Form(""),
     edition_keywords: str = Form(""),
     search_query: str = Form(""),
+    tags: str = Form(""),
     draft: str = Form(""),
     front: UploadFile | None = File(None),
     spine: UploadFile | None = File(None),
@@ -1167,7 +1170,7 @@ async def create_item(
 ):
     values = _item_values(title, format, edition, retailer, region, upc, condition, notes,
                           paid_price, paid_on, genre, director, year, edition_keywords,
-                          search_query)
+                          search_query, tags)
     errors = _item_errors(values)
 
     # Validate every upload before anything touches disk or the database.
@@ -1467,10 +1470,11 @@ def update_item(
     year: str = Form(""),
     edition_keywords: str = Form(""),
     search_query: str = Form(""),
+    tags: str = Form(""),
 ):
     values = _item_values(title, format, edition, retailer, region, upc, condition, notes,
                           paid_price, paid_on, genre, director, year, edition_keywords,
-                          search_query)
+                          search_query, tags)
     errors = _item_errors(values)
     with db.connect(settings.database_path) as conn:
         item = db.get_item(conn, item_id)

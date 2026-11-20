@@ -118,7 +118,20 @@ def shelve(items: list[sqlite3.Row], sort: str) -> list[Shelf]:
     return [Shelf(None, _newest(items))]
 
 
-SEARCHED = ("title", "edition", "retailer", "region", "format", "notes", "genre", "director")
+SEARCHED = ("title", "edition", "retailer", "region", "format", "notes", "genre", "director",
+            "tags")
+
+
+def tag_list(text: str | None) -> list[str]:
+    """The tags in a comma-separated field, trimmed, blanks dropped, and each kept once
+    — the first spelling wins when two differ only in case."""
+    seen, out = set(), []
+    for tag in (text or "").split(","):
+        tag = " ".join(tag.split())
+        if tag and tag.casefold() not in seen:
+            seen.add(tag.casefold())
+            out.append(tag)
+    return out
 
 
 def search(items: list[sqlite3.Row], q: str | None) -> list[sqlite3.Row]:

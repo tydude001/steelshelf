@@ -65,6 +65,9 @@
         <input id="paid_on" name="paid_on" type="date" value="{{ values.paid_on or '' }}">
       </div>
     </div>
+    <label for="tags">Tags</label>
+    <input id="tags" name="tags" autocomplete="off" value="{{ values.tags or '' }}"
+           placeholder="your own labels, comma-separated: IMAX, gift">
     <label for="notes">Notes</label>
     <textarea id="notes" name="notes" rows="3">{{ values.notes or '' }}</textarea>
   </fieldset>

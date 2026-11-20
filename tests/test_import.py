@@ -216,7 +216,7 @@ def test_an_export_maps_itself_and_the_form_folds_away(admin):
     post_item(admin, data={"title": "Alien"})
     _, page = preview(admin, admin.get("/export.csv", auth=AUTH).text)
     assert '<details class="import-map">' in page  # not open: nothing to fix
-    assert "15 read" in page
+    assert "16 read" in page
 
 
 # --- repeats ---------------------------------------------------------------------------
